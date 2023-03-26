@@ -40,7 +40,7 @@ pacman::p_load(stringr)
 
 # ~~~~~~~~~~~~ Functions ~~~~~~~~~~~~ #
 
-source("Functions.R")
+source("Functions/Functions.R")
 
 
 # ~~~~~~~~~~~~ Parameters ~~~~~~~~~~~~ #

@@ -21,21 +21,21 @@
 
 # 01Descarga
 
-RX_GetDataGEO <- function(estudio, dir=getwd()){
+RX_GetDataGEO <- function(StudyAcc, dir=getwd()){
   "library(GEOquery)"
   setwd(dir) 
-  print(glue("Processing {estudio}:"))
+  print(glue("Processing {StudyAcc}:"))
   # Check if the file exists
   if(
     class(
       try(
-        {getGEOSuppFiles(estudio, makeDirectory =TRUE,
+        {getGEOSuppFiles(StudyAcc, makeDirectory =TRUE,
                          baseDir = dir, fetch_files = TRUE)
           # Set working directory
-          setwd(glue("{dir}/{estudio}"))}
+          setwd(glue("{dir}/{StudyAcc}"))}
       )) == "try-error"){
     # Error
-    print(glue("{estudio} could not be downloaded."))
+    print(glue("{StudyAcc} could not be downloaded."))
   }else{
     # Decompress files
     files = list.files()
@@ -57,32 +57,32 @@ RX_GetDataGEO <- function(estudio, dir=getwd()){
     
     # Download study information
     dir.create("01RawData")
-    metadata = getGEO(GEO = estudio)[[1]]
-    save(metadata, file = glue("{estudio}_metadata.RData"))
+    metadata = getGEO(GEO = StudyAcc)[[1]]
+    save(metadata, file = glue("{StudyAcc}_metadata.RData"))
     system( "mv `ls | grep -v 01RawData` 01RawData/")
     
     # Completed
-    print(glue("Study {estudio} processed successfully.."))
+    print(glue("Study {StudyAcc} processed successfully.."))
   }
 }
 
-RX_GetDataArrEx <- function(estudio, dir=getwd()){
+RX_GetDataArrEx <- function(StudyAcc, dir=getwd()){
   # library(ArrayExpress)
   setwd(dir)
-  # Creamos el directorio para almacenar los datos
-  path0 = glue("{estudio}/01RawData")
-  system(glue("mkdir {estudio} {path0}"))
-  #system(paste0("cd ", estudio))
-  # Descargamos los datos
+  # Creating the directory to store the data.
+  path0 = glue("{StudyAcc}/01RawData")
+  system(glue("mkdir {StudyAcc} {path0}"))
+  
+  # Data download
   if(
     class(
       try(
-        {exp_set = ArrayExpress(estudio, path = path0)} 
+        {exp_set = ArrayExpress(StudyAcc, path = path0)} 
       )) == "try-error"){
     # Error
-    print(glue("{estudio} no ha podido ser descargado."))
+    print(glue("{StudyAcc} could not be downloaded."))
   }else{
-    # Guardado del ExpressionSet
-    save(exp_set, file = glue("{path0}/{estudio}_raw.rda"))
+    # Save the ExpressionSet
+    save(exp_set, file = glue("{path0}/{StudyAcc}_raw.rda"))
   }
 }

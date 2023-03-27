@@ -21,24 +21,23 @@
 
 # 01Descarga
 
-## Funciones empleadas
 RX_GetDataGEO <- function(estudio, dir=getwd()){
   "library(GEOquery)"
   setwd(dir) 
-  print(glue("Procesando {estudio}:"))
-  # Comprobamos si los fichero existen
+  print(glue("Processing {estudio}:"))
+  # Check if the file exists
   if(
     class(
       try(
         {getGEOSuppFiles(estudio, makeDirectory =TRUE,
                          baseDir = dir, fetch_files = TRUE)
-          # Descompresion
+          # Set working directory
           setwd(glue("{dir}/{estudio}"))}
       )) == "try-error"){
     # Error
-    print(glue("{estudio} no ha podido ser descargado."))
+    print(glue("{estudio} could not be downloaded."))
   }else{
-    # Descomprimimos solo los raw
+    # Decompress files
     files = list.files()
     for (file in files){
       if (endsWith(file, "tar")){
@@ -53,17 +52,17 @@ RX_GetDataGEO <- function(estudio, dir=getwd()){
         }
       }
     }
-    #Eliminar los comprimidos
+    # Delete the compressed files
     system(paste("rm", files, sep = ' '))
     
-    # Descargamos la información del estudio
+    # Download study information
     dir.create("01RawData")
     metadata = getGEO(GEO = estudio)[[1]]
     save(metadata, file = glue("{estudio}_metadata.RData"))
     system( "mv `ls | grep -v 01RawData` 01RawData/")
     
-    # Completado
-    print(glue("El estudio {estudio} se ha procesado correctamente."))
+    # Completed
+    print(glue("Study {estudio} processed successfully.."))
   }
 }
 

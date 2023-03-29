@@ -165,3 +165,40 @@ RX_probe2gene <- function(Data, # ExpressionSet or SummarizedExperiment from mic
   return(DataOut)
 }
 
+
+RX_annot <- function(Data, # ExpressionSet or SummarizedExperiment 
+                     db = org.Hs.eg.db,  # Pre-Loaded Annotation Package
+                     fromAnot="ENTREZID",  # Current identifiers
+                     toAnot = c("ENSEMBL","SYMBOL") # Identifiers to take
+){
+  #library("AnnotationDbi")
+  #library("BiocGenerics")
+  #library(org.Hs.eg.db)
+  Dataout = Data
+  # Search for matches
+  anot = AnnotationDbi::select(x = db,
+                               keys = rownames(Dataout),
+                               columns = toAnot,
+                               keytype = fromAnot,
+                               multiVals = "first")
+  
+  # Check and deal with multiple matches
+  if(! isTRUE(all.equal(rownames(Dataout),anot[,fromAnot]))){  
+    ind = BiocGenerics::match(rownames(Dataout), anot[,fromAnot]) 
+    if (class(Data) == "SummarizedExperiment"){
+      # Combine with the above information
+      rowData(Dataout) =cbind(anot[ind,],
+                              rowData(Dataout)[which(!colnames(rowData(Dataout)) 
+                                                     %in% c(fromAnot,toAnot))])
+    }else{
+      # Combine with the above information
+      fData(Dataout) =cbind(anot[ind,],
+                            fData(Dataout)[which(!colnames(fData(Dataout)) 
+                                                 %in% c(fromAnot, toAnot))])
+      
+    }
+  }
+  
+  return(Dataout)
+}
+

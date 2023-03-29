@@ -19,9 +19,11 @@
 # ~~~~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~ ** ~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~~~~ #
 
 
-# 01Descarga
+# ~~~~~~~~~~~~ 01Download ~~~~~~~~~~~~ #
 
-RX_GetDataGEO <- function(StudyAcc, dir=getwd()){
+RX_GetDataGEO <- function(StudyAcc, # GEO Accession
+                          dir=getwd() # Working directory, by default the current directory is taken
+                          ){
   "library(GEOquery)"
   setwd(dir) 
   print(glue("Processing {StudyAcc}:"))
@@ -66,7 +68,9 @@ RX_GetDataGEO <- function(StudyAcc, dir=getwd()){
   }
 }
 
-RX_GetDataArrEx <- function(StudyAcc, dir=getwd()){
+RX_GetDataArrEx <- function(StudyAcc, # ArrayExpress Accession
+                            dir=getwd() # Working directory, by default the current directory is taken
+                            ){
   # library(ArrayExpress)
   setwd(dir)
   # Creating the directory to store the data.
@@ -86,3 +90,4 @@ RX_GetDataArrEx <- function(StudyAcc, dir=getwd()){
     save(exp_set, file = glue("{path0}/{StudyAcc}_raw.rda"))
   }
 }
+

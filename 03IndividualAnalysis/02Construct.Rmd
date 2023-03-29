@@ -1,5 +1,5 @@
 ---
-title: "02Unificacion"
+title: "02Construct"
 author: "Roxana Andreea Moldovan Moldovan"
 date: "2023-02-22"
 output: html_document
@@ -132,6 +132,9 @@ age = factor(x = (sapply(ed, function(x) RX_ifelse(x >= 18, "Adult",
                   simplify = TRUE, USE.NAMES = FALSE)),
                   levels = c("Adult"))
 
+## Batch
+batch = factor(str_split_i(pD1$Source.Name, pattern = " ", i=3))
+
 #Almacenamos los datos fenotípicos
 phenoData0 = data.frame(Gender = gender,
                         Group = group,
@@ -140,6 +143,7 @@ phenoData0 = data.frame(Gender = gender,
                         Tissue = tissue,
                         Patient = NA,
                         AgeGroup = age,
+                        Batch = batch,
                         pD1) 
 
 # Ordenamos en base al tejido, grupo y genero 
@@ -291,6 +295,7 @@ E_MEXP_1425_norm = normData = rma(probeData,
                                   normalize=TRUE, background = TRUE)
 save(E_MEXP_1425_norm, normData, file = glue("{DirRData}/normData.RData"))
 ```  
+
 ### Anotación    
 
 ```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
@@ -348,6 +353,98 @@ glue("Partiamos de {nrow(normData)} sondas, y tras la anotación nos quedamos
 E_MEXP_1425_norm_anot = normData_anot
 save(E_MEXP_1425_norm_anot, normData_anot, file = glue("{DirRData}/normData_anot.RData"))
 ```    
+
+
+### Correccion del Batch effect  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/normData.RData"))
+```  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}   
+# Usamos ComBat para corregir el batch effect encontrado
+normData2 = normData 
+exprs(normData2) = ComBat(exprs(normData), batch = normData$Batch) 
+``` 
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+E_MEXP_1425_norm2 = normData2
+save(E_MEXP_1425_norm2, normData2, file = glue("{DirRData}/normData2.RData"))
+```  
+
+### Anotación    
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/normData2.RData"))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la plataforma de anotación
+cat("La plataforma empleada para la anotación es",
+    annotation(normData2), "\n")
+```  
+
+Cargamos los datos de anotación.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos la base de datos
+anotdb = "hgu133plus2.db"
+pacman::p_load(char = anotdb)
+```
+
+Para anotar, tomaremos la mediana de la expresión de las sondas que corresponden
+a un mismo gen, mientras que si varios genes corresponden con una misma sonda, tomaremos el primer identificador de gen.  
+Asimismo, en este proceso convertiremos el objeto a un SummarizedExperiment, lo 
+que permite la unificación del formato para todos los experimentos.  
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conversion de sondas a genes
+#rm(normData_anot)
+normData2_anot = RX_probe2gene(normData2,
+                              anotdb = hgu133plus2.db,
+                              multi.from = median)   
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones
+normData2_anot = RX_annot(normData2_anot,
+                         db = org.Hs.eg.db,
+                         fromAnot="ENTREZID",
+                         toAnot = c("ENSEMBL","SYMBOL")) 
+```  
+
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(normData2)} sondas, y tras la anotación nos quedamos
+      con {nrow(normData2_anot)} genes.")
+```  
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+E_MEXP_1425_norm2_anot = normData2_anot
+save(E_MEXP_1425_norm2_anot, normData2_anot, file = glue("{DirRData}/normData2_anot.RData"))
+```   
+
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData_anot.RData"))
+E_MEXP_1425_final = finalData = normData2_anot
+save(E_MEXP_1425_final, finalData, file = glue("{DirRData}/finalData.RData"))
+```  
+
 
 ***   
 
@@ -591,19 +688,39 @@ save(GSE20950_raw_anot, rawData_anot, file = glue("{DirRData}/rawData_anot.RData
 
 ### Normalización  
 
-```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+```
 # Cargamos los datos
 load(glue("{DirRData}/probeData.RData"))
-```
-
-Llevaremos a cabo una normalización por cuartiles y una corrección de fondo usando RMA. 
-
-```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
 # Tomamos la información de expresión por sonda y los guardamos
 GSE20950_norm = normData = rma(probeData, 
                                normalize=TRUE, background = TRUE)
 save(GSE20950_norm, normData, file = glue("{DirRData}/normData.RData"))
 ```  
+
+En este caso nos quedamos con los datos normalizados proporcionados en el estudio.  
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/rawData.RData"))
+```  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+normData =  rawData[which(featureNames(rawData) %in% featureNames(metadata)),]
+# Reordenamos la matriz normalizada según el indice anterior obtenido
+# Tomamos la coincidencia entre los nombres asignados de las muestras
+ind = match(phenoData$Accesion, sampleNames(metadata))
+normData0 = metadata[,ind]
+# Asignamos los nombres
+sampleNames(normData0) = phenoData$Sample
+exprs(normData) =  exprs(normData0) 
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la información de expresión por sonda y los guardamos
+GSE20950_norm = normData
+save(GSE20950_norm, normData, file = glue("{DirRData}/normData.RData"))
+```  
+
 
 
 ### Anotación    
@@ -741,6 +858,17 @@ glue("Partiamos de {nrow(normData2)} sondas, y tras la anotación nos quedamos
 GSE20950_norm2_anot = normData2_anot
 save(GSE20950_norm2_anot, normData2_anot, file = glue("{DirRData}/normData2_anot.RData"))
 ```   
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData2_anot.RData"))
+GSE20950_final = finalData = normData2_anot
+save(GSE20950_final, finalData, file = glue("{DirRData}/finalData.RData"))
+```  
 
 
 ***   
@@ -1070,8 +1198,8 @@ exprs(normData2) = ComBat(exprs(normData), batch = normData$Batch)
 
 ```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
 # Guardamos los datos anotados
-GSE20950_norm2 = normData2
-save(GSE20950_norm2, normData2, file = glue("{DirRData}/normData2.RData"))
+GSE29718_norm2 = normData2
+save(GSE29718_norm2, normData2, file = glue("{DirRData}/normData2.RData"))
 ```  
 
 
@@ -1129,9 +1257,20 @@ glue("Partiamos de {nrow(normData2)} sondas, y tras la anotación nos quedamos
 
 ```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
 # Guardamos los datos anotados
-GSE20950_norm2_anot = normData2_anot
-save(GSE20950_norm2_anot, normData2_anot, file = glue("{DirRData}/normData2_anot.RData"))
+GSE29718_norm2_anot = normData2_anot
+save(GSE29718_norm2_anot, normData2_anot, file = glue("{DirRData}/normData2_anot.RData"))
 ```   
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData2_anot.RData"))
+GSE29718_final = finalData = normData2_anot
+save(GSE29718_final, finalData, file = glue("{DirRData}/finalData.RData"))
+```  
 
 
 ***   
@@ -1447,6 +1586,17 @@ glue("Partiamos de {nrow(normData)} sondas, y tras la anotación nos quedamos
 GSE64567_norm_anot = normData_anot
 save(GSE64567_norm_anot, normData_anot, file = glue("{DirRData}/normData_anot.RData"))
 ```    
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData_anot.RData"))
+GSE64567_final = finalData = normData_anot
+save(GSE64567_final, finalData, file = glue("{DirRData}/finalData.RData"))
+```  
 
 
 ***   
@@ -1767,6 +1917,16 @@ GSE78721_norm_anot = normData_anot
 save(GSE78721_norm_anot, normData_anot, file = glue("{DirRData}/normData_anot.RData"))
 ```    
 
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData_anot.RData"))
+GSE78721_final = finalData = normData_anot
+save(GSE78721_final, finalData, file = glue("{DirRData}/finalData.RData"))
+```  
 
 ***   
 
@@ -1985,8 +2145,8 @@ Filtramos los genes que presentan menos de medio millón de conteos en al menos 
 DGE = DGEList(counts = assay(rawData)) 
 # Filtrado:
 # Eliminamos los conteos que tengan 0 en todas las filas 
-keep <- which(rowSums(edgeR::cpm(assay(rawData))) > 0)
-#keep <- rowSums(edgeR::cpm(assay(rawData)) > 0,5) >= 2
+#keep <- which(rowSums(edgeR::cpm(assay(rawData))) > 0)
+keep <- rowSums(edgeR::cpm(assay(rawData)) > 0,5) >= 2
 DGE = DGE[keep,]
 
 # Calculamos los factores de normalización por el método TMM
@@ -2054,6 +2214,16 @@ GSE141432_norm_anot = normData_anot
 save(GSE141432_norm_anot, normData_anot, file = glue("{DirRData}/normData_anot.RData"))
 ```      
 
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData_anot.RData"))
+GSE141432_final = finalData = normData_anot
+save(GSE141432_final, finalData, file = glue("{DirRData}/finalData.RData"))
+```   
 
 ***    
 
@@ -2357,7 +2527,20 @@ glue("Tenemos {nrow(normData)} genes anotados, de los cuales {nrow(normData_anot
 # Guardamos los datos anotados
 GSE205668_norm_anot = normData_anot
 save(GSE205668_norm_anot, normData_anot, file = glue("{DirRData}/normData_anot.RData"))
-```      
+```     
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData_anot.RData"))
+GSE205668_final = finalData = normData_anot
+save(GSE205668_final, finalData, file = glue("{DirRData}/finalData.RData"))
+```  
+
+
 
 ***   
 
@@ -2375,6 +2558,4 @@ save(rawData0List, rawData0, file = glue("{GlobalDirData}/rawData0.RData"))
 
 
 ***  
-
-
 

@@ -91,3 +91,77 @@ RX_GetDataArrEx <- function(StudyAcc, # ArrayExpress Accession
   }
 }
 
+
+# ~~~~~~~~~~~~ 02Construct ~~~~~~~~~~~~ #
+
+RX_probe2gene <- function(Data, # ExpressionSet or SummarizedExperiment from microarray study
+                          anotdb = org.Hs.eg.db, # Pre-Loaded Annotation Package
+                          from = "PROBEID", # Current identifiers
+                          to = "ENTREZID", # Identifiers to take
+                          multi.to = "first", # Treatment of multiple matches with destination identifiers
+                          multi.from = median # Treatment of multiple matches with source identifiers. It corresponds to a specific function, by default the median is taken.
+                          ){  
+  # library(AnnotationDbi)
+  if (class(Data) == "SummarizedExperiment"){ 
+    DataOut = Data
+    exData = assay(Data)
+  }else{
+    DataOut = Data 
+    exData = exprs(Data)
+    #rowData(DataOut) = data.frame(rowData(DataOut))
+  }
+  # Annotation
+  Anot0 = AnnotationDbi::select(x = anotdb,
+                                keys = rownames(DataOut),
+                                columns = to,
+                                keytype = from)
+  
+  
+  # If there is more than one gene per probe, we take the first one.
+  ind1 = match(rownames(DataOut), Anot0[,from])
+  Anot = Anot0[ind1,]
+  
+  # Delete probes that do not correspond to any gene. 
+  Anot = Anot[which(! is.na(Anot[,to])),]
+  
+  # Join the annotation with the input data
+  Exp0 = data.frame(from = rownames(exData), exData)
+  Exp1 = merge(Anot, Exp0, by.x = glue("{from}"), by.y = 1)
+  
+  # Take the samples name
+  Samp = colnames(DataOut)
+  
+  # If we have more than one probe per gene we use the 'multi.from' function.
+  Exp2 = aggregate(Exp1[which(colnames(Exp1) %in% Samp)], 
+                   by = list(X= Exp1[,to]),
+                   multi.from)
+  
+  # We have in X the genes according to the indicated nomenclature.
+  # Order as in the original,
+  ord = match(unique(Exp1[,to]),  Exp2$X)
+  Exp3 <- Exp2[ord,]
+  ind2 = match(Exp3[,"X"], Anot[,to])
+  Anot2 = Anot[ind2,] # Anot 2 es la anotacion final
+  
+  # Match the data
+  ind3 = match(rownames(DataOut), Anot2[,from])
+  # Assign the values to the original 
+  if (class(Data) == "SummarizedExperiment"){ 
+    rowData(DataOut) = Anot2[ind3,]
+    DataOut <- DataOut[which(!is.na(rowData(DataOut)$PROBEID),)]
+    rownames(DataOut) = Exp3$X
+    rownames(Exp3) = Exp3$X
+    # We assign the values to the array
+    assay(DataOut, withDimnames=FALSE) <- as.matrix(Exp3[,-1])
+  }else{
+    fData(DataOut) = (Anot2[ind3,])
+    DataOut <- DataOut[which(!is.na(fData(DataOut)$PROBEID),)]
+    rownames(DataOut) = Exp3$X
+    rownames(Exp3) = Exp3$X
+    # We assign the values to the array
+    exprs(DataOut) <- as.matrix(Exp3[,-1]) 
+  }
+  # Return
+  return(DataOut)
+}
+

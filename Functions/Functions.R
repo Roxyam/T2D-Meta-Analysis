@@ -19,8 +19,36 @@
 # ~~~~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~ ** ~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~~~~ #
 
 
+# ~~~~~~~~~~~~ General ~~~~~~~~~~~~ #
+
+#------------- RX_coind
+RX_coind <- function(dict, # Dictionary
+                     lst, # List to change based on dictionary information
+                     names = FALSE # Keep original names, by default is false
+                     ){
+  # Map matches between a dictionary and a list
+  lst = as.vector(lst)
+  out = (sapply(lst, function(x) dict[[x]], USE.NAMES = names))
+  return(out)
+}
+
+#------------- RX_ifelse
+RX_ifelse <- function(cond, # conditional instance
+                      true, # Function or object to return if the condition is true
+                      false # Function or object to return if the condition is false
+                      ){
+  if (cond){
+    out = true
+  }else{
+    out = false
+  }
+  return(out)
+}
+
+
 # ~~~~~~~~~~~~ 01Download ~~~~~~~~~~~~ #
 
+#------------- RX_GetDataGEO
 RX_GetDataGEO <- function(StudyAcc, # GEO Accession
                           dir=getwd() # Working directory, by default the current directory is taken
                           ){
@@ -68,6 +96,7 @@ RX_GetDataGEO <- function(StudyAcc, # GEO Accession
   }
 }
 
+#------------- RX_GetDataArrEx
 RX_GetDataArrEx <- function(StudyAcc, # ArrayExpress Accession
                             dir=getwd() # Working directory, by default the current directory is taken
                             ){
@@ -94,6 +123,7 @@ RX_GetDataArrEx <- function(StudyAcc, # ArrayExpress Accession
 
 # ~~~~~~~~~~~~ 02Construct ~~~~~~~~~~~~ #
 
+#------------- RX_probe2gene
 RX_probe2gene <- function(Data, # ExpressionSet or SummarizedExperiment from microarray study
                           anotdb = org.Hs.eg.db, # Pre-Loaded Annotation Package
                           from = "PROBEID", # Current identifiers
@@ -165,7 +195,7 @@ RX_probe2gene <- function(Data, # ExpressionSet or SummarizedExperiment from mic
   return(DataOut)
 }
 
-
+#------------- RX_annot
 RX_annot <- function(Data, # ExpressionSet or SummarizedExperiment 
                      db = org.Hs.eg.db,  # Pre-Loaded Annotation Package
                      fromAnot="ENTREZID",  # Current identifiers

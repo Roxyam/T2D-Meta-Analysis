@@ -232,3 +232,170 @@ RX_annot <- function(Data, # ExpressionSet or SummarizedExperiment
   return(Dataout)
 }
 
+# ~~~~~~~~~~~~ 03ExploratoryAnalysis ~~~~~~~~~~~~ #
+
+#------------- RX_resumeBarPlot
+# Barplot
+RX_resumeBarPlot <- function(Data, # ExpressionSet or SummarizedExperiment 
+                             Fac_1, # Name of the first factor (groups the samples on the x-axis and defines the color).
+                             Fac_2 = NULL, # Name of the second factor (chance the alpha).
+                             Fac_wrap = NULL, # Name of the third factor (group de data).
+                             OneBar = TRUE, # Determines how the samples are grouped. IF it is TRUE all the levels of factor 2 are shown in the same bar, if it is FALSE there is one bar per factor.
+                             expandY = NULL, # Expansion factor the y-axis (Ex: 0.2 is 20% more).
+                             colors = NULL, # Color dictionary for factor 1
+                             alpha = c(0.2, 0.6),# Alpha values that make up factor 2
+                             ylab = "Número de muestras", # Y label
+                             xlab = Fac_1, # X label
+                             Fac_1_tit = Fac_1, # Factor one legend title, by default is the name of the variable
+                             Fac_2_tit = Fac_2, # Factor two legend title, by default is the name of the variable
+                             sep_width=0.4, # Bar spacing
+                             numLabels = TRUE, # Add label with the number of samples per group
+                             porcentLabels = TRUE, # Add label with the percentage of samples per group with respect to factor 1
+                             numpos = 1.6, # Position of the number labels on the y-axis with respect to the end of the bar.
+                             porcentpos = 4 # Position of the percentage labels on the y-axis with respect to the end of the bar.
+){
+  require(plyr)
+  # Convertimos los datos
+  Tabla <- Data %>%
+    dplyr::group_by(RX_ifelse(is.null(Fac_1), NULL, Data[,Fac_1]),
+                    RX_ifelse(is.null(Fac_2), NULL, Data[,Fac_2]),
+                    RX_ifelse(is.null(Fac_wrap), NULL, Data[,Fac_wrap])) %>% 
+    dplyr::summarise(Total = n())  
+  
+  colnames(Tabla) = c(RX_ifelse(is.null(Fac_1), NULL, "Fac_1"),
+                      RX_ifelse(is.null(Fac_2), NULL, "Fac_2"),
+                      RX_ifelse(is.null(Fac_wrap), NULL, "Fac_wrap"),
+                      "Total")
+  Tabla = Tabla %>%
+    ddply(.variables = c("Fac_1"), transform, Porcentaje = round(Total/sum(Total)*100, 1)) %>%
+    ddply(c("Fac_1", RX_ifelse(is.null(Fac_wrap), NULL, "Fac_wrap")), transform, Ypos = cumsum(Total)) 
+  
+  
+  # Onebar
+  if(isTRUE(OneBar)){
+    '    BarPlot <- ggplot(Data, aes(x = RX_ifelse(is.null(Fac_1), "",Data[,Fac_1]),  
+                                fill= RX_ifelse(is.null(Fac_1), "",Data[,Fac_1]), 
+                                color= RX_ifelse(is.null(Fac_1), "",Data[,Fac_1]),
+                                alpha= RX_ifelse(is.null(Fac_2), NULL, Data[,Fac_2]))) + 
+      geom_bar() '
+    # Plot
+    BarPlot <- ggplot(Tabla, aes(x = RX_ifelse(is.null(Fac_1), "",Fac_1),
+                                 y=Total,
+                                 fill= RX_ifelse(is.null(Fac_1), "",Fac_1),
+                                 color= RX_ifelse(is.null(Fac_1), "",Fac_1),
+                                 alpha= RX_ifelse(is.null(Fac_2), NULL, Fac_2))) + 
+      geom_bar(width = sep_width,stat="identity", 
+               position = position_stack(reverse = TRUE),
+               size  = 1.5
+               #color = "#525152" 
+               #position = position_dodge()
+      ) 
+    # Agrupamos
+    '    if(! is.null(Fac_wrap)){ 
+      BarPlot <- BarPlot + facet_wrap(~Data[, Fac_wrap])} 
+    
+      # Redimensionamos el eje y a un 10 por ciento más
+    if(! is.null(Fac_2) & !is.null(expandY)){ 
+      ymax0 = max(table(Data[,Fac_2]))
+      ymax = ymax0 +  ymax0 * expandY
+      # aumentamos el eje Y
+      BarPlot <- BarPlot + ylim(c(0,ymax)) 
+    }'
+    
+    # Etiquetas
+    if(isTRUE(numLabels)){
+      BarPlot <- BarPlot + 
+        # Total
+        geom_text(data = Tabla, aes( y = Ypos, label=glue("n = {Total}"), ), 
+                  alpha = 1,
+                  vjust= numpos,
+                  color="black",
+                  size=3.0) 
+      if(isTRUE(porcentLabels)){
+        BarPlot <- BarPlot +
+          # Porcentaje
+          geom_text(data = Tabla, aes( y = Ypos, label=glue("({Porcentaje} %)"), ), 
+                    alpha = 1,
+                    vjust=porcentpos,
+                    color="black",
+                    size=2.5) } 
+    }
+    # Redimensionamos el eje y a un 10 por ciento más
+    if(!is.null(expandY)){ 
+      ymax0 = max(Tabla$Ypos)
+      ymax = ymax0 +  ymax0 * expandY
+      # aumentamos el eje Y
+      BarPlot <- BarPlot + ylim(c(0,ymax)) 
+    }   
+  }else{
+    
+    # Plot
+    BarPlot <- ggplot(Tabla, aes(x = Fac_1,
+                                 y=Total,
+                                 fill= Fac_1,
+                                 color= Fac_1,
+                                 alpha= Fac_2)) + 
+      geom_bar(width = sep_width,stat="identity", 
+               position = position_dodge(), 
+               size  = 1.5
+      )     
+    # Etiquetas
+    if(isTRUE(Labels)){
+      BarPlot <- BarPlot + 
+        # Total
+        geom_text(aes(label= glue("n = {Total}"), y = Total), alpha = 1,vjust=1.6,                        
+                  color="black", 
+                  #hjust=0.5,
+                  # define text position and size
+                  position = position_dodge2(sep_width),  
+                  angle=0, 
+                  size=3.0) + 
+        # Porcenteje
+        geom_text(aes(label= glue("({Porcentaje} %)"), y = Total), alpha = 1,vjust=4,                        
+                  color="black", 
+                  #hjust=0.5,
+                  # define text position and size
+                  position = position_dodge2(sep_width),  
+                  angle=0, 
+                  size=2.5) }
+    # Redimensionamos el eje y a un 10 por ciento más
+    if(!is.null(expandY)){ 
+      ymax0 = max(Tabla$Total)
+      ymax = ymax0 +  ymax0 * expandY
+      # aumentamos el eje Y
+      BarPlot <- BarPlot + ylim(c(0,ymax)) 
+    }   
+  }  
+  # Agrupamos
+  if(! is.null(Fac_wrap)){ 
+    BarPlot <- BarPlot + facet_wrap(~Fac_wrap)}
+  
+  # Ajuste   
+  # COlores 
+  if(! is.null(colors)){
+    BarPlot <- BarPlot + 
+      # Asignamos colores
+      scale_fill_manual(values = colors) +  
+      scale_color_manual(values = colors)
+  }
+  
+  
+  BarPlot <- BarPlot +  
+    # Alpha
+    scale_alpha_discrete(range = alpha) +
+    theme(plot.background = element_rect(fill="transparent"),
+          panel.background = element_rect(fill = "transparent"),
+          axis.line = element_line(colour = "black"),
+          axis.text.x = element_text(angle = 0, size = 12)) +
+    # Nombres ejes
+    ylab(ylab) +
+    xlab(xlab) + 
+    # Leyenda 
+    guides(fill = guide_legend(title=Fac_1_tit,
+                               order = 1),
+           alpha = guide_legend(title=Fac_2_tit,
+                                order = 2),
+           color = "none")
+  
+  return(BarPlot)
+}

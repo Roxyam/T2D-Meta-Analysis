@@ -254,7 +254,9 @@ RX_resumeBarPlot <- function(Data, # ExpressionSet or SummarizedExperiment
                              numpos = 1.6, # Position of the number labels on the y-axis with respect to the end of the bar.
                              porcentpos = 4 # Position of the percentage labels on the y-axis with respect to the end of the bar.
 ){
-  require(plyr)
+  #library(plyr)
+  #library(dplyr)
+  #library(ggplot)
   # Convertimos los datos
   Tabla <- Data %>%
     dplyr::group_by(RX_ifelse(is.null(Fac_1), NULL, Data[,Fac_1]),

@@ -44,16 +44,23 @@ parser <- ArgumentParser(description="This script Compute differential
                                       expression analysis of a set of
                                       studies")
 
-# GEO studies
-parser$add_argument("-g", "--geo",
+# Studies
+parser$add_argument("-s", "--studies",
                     action="store",
                     type="character",
-                    default=NULL,
-                    help="GEO study or studies to download
-                          separated by comma.", 
-                    metavar= "GEO accesion")
+                    required=TRUE,
+                    help="Studies to include separated by comma")
 
-# Output directory
+# Variables
+parser$add_argument("-v", "--vars",
+                    action="store",
+                    type="character",
+                    default="Group",
+                    choices = c("Group","Obesity", "Diabetes"), 
+                    help="Variable or variables to use in the
+                          differential expression.")
+
+# Data directory
 parser$add_argument("-o", "--outdir",
                     action="store",
                     type="character",
@@ -61,14 +68,24 @@ parser$add_argument("-o", "--outdir",
                     help="Where you would like the output files to be placed,
                           by default the current directory will be taken.")
 
+# Output directory
+parser$add_argument("-i", "--indir",
+                    action="store",
+                    type="character",
+                    default=".",
+                    help="Data directory, by default the current
+                          directory will be taken.")
+
+# Report
+parser$add_argument("-r", "--report",
+                    action="store",
+                    type="character",
+                    dafault=TRUE,
+                    help="Create an R Markdown and HTML with the results.")
+
 
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
 #------------- Checking arguments
 args <- parser$parse_args()
 
-if(length(dir_in) == 1 | length(dir_in) == length(Studies)){
-  files = glue("{dir_in}/{Studies}")
-} else{
-  stop("The input directory must be one or one for each study.")
-}

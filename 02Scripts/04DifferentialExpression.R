@@ -9,9 +9,11 @@
 #
 #     This script takes the data referring to a set of studies and
 #     computes the differential expression analysis independently 
-#     for each one of them, carrying out all the contrasts of both,
-#     the variable to be studied, and its intersection with the sex
-#     of the sample.
+#     for each one of them, carrying out the contrasts for one or a
+#     set of variables and its intersection with the sex of the
+#     patient. 
+#     In addition to saving the results obtained in RData format,
+#     create a report that shows them.
 #
 #
 #     ****************************************************************

@@ -86,6 +86,183 @@ parser$add_argument("-r", "--report",
 
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
-#------------- Checking arguments
+#------------- Prepare arguments
 args <- parser$parse_args()
+report_out = glue("{args$outdir}/DifferentialExpressionReport.rmd")
+
+#------------- Differential expression
+for (var in args$vars){
+  Results = c()
+  Studies_out = c()
+  for (study in args$studies){
+    Acc = study
+    DirRData = glue("{args$indir}/{Acc}/02RData")
+    DirDEData = glue("{args$outdir}")
+    load(glue("{DirRData}/finalData.RData"))
+    Data = finalData
+    try({      
+      # Compute the differential expression
+      Res <- RX_DiffExpFinal(Data, var1 = var, var2="Gender")
+      # Add the annotation
+      if(class(Data) == "ExpressionSet"){
+        anotData = fData(Data)  
+      }else{
+        anotData = rowData(Data)      
+      }
+      
+      Res = sapply(names(Res), 
+                   function(i) sapply(names(Res[[i]]),
+                                      function(j){ cbind(Res[[i]][[j]]$"TopTab",
+                                                         anotData[match(rownames(Res[[i]][[j]]$"TopTab"),
+                                                                        anotData$ENTREZID),])
+                                        return(Res[[i]][[j]])},
+                                      simplify = FALSE),
+                   simplify = FALSE)  
+      # Save the information in a R data file
+      Results = c(Results, list(Res))
+      Studies_out = c(Studies_out, study)
+      #save(Res, file = glue("{DirDEData}/{Acc}DifferentialExpression{var}.RData")) 
+    }, silent = TRUE)
+  }
+  names(Results) = Studies_out
+  save(Results, file = glue("{DirDEData}/DifferentialExpression{var}.RData")) 
+}
+
+#------------- Report
+if(isTRUE(args$report)){
+  # File info
+  cat('---
+title: "04 Differential expression analysis"
+author: "Roxana Andreea Moldovan Moldovan"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: false
+    toc_float: false
+    number_sections: false 
+    code_folding: hide
+    theme: flatly
+    bg: "#FFFFFF"
+    fg: "#202020"
+    primary: "#90C432"
+    secondary: "#2494b5" 
+  pDT_document:
+    extra_dependencies: "subfig"
+linkcolor: blue
+urlcolor: blue
+citecolor: blue
+header-includes:
+- \\usepackage{subfig}
+- \\usepackage{float}
+fig_caption: yes 
+link-citations: TRUE 
+---
+        ',
+      sep ="",
+      file = report_out,
+      append = FALSE
+  )
+  
+  ## Análisis de expresión diferencial {.tabset .tabset-fade -} 
+  cat('\n## Análisis de expresión diferencial {.tabset .tabset-fade -}  \n',
+      '&nbsp;  \n\n',
+      sep ="",
+      file = report_out,
+      append = TRUE)
+  # Load packages
+  cat(
+    # Open chunk
+    '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}\n',
+    '# Load packages \n',
+    'library(pacman)
+pacman::p_load(glue)
+pacman::p_load(DT)
+# Functions
+source("../Functions/Functions.R")',
+    # Close chunk
+    '\n```  \n\n','\n&nbsp;  \n\n',
+    sep ="",
+    file = report_out,
+    append = TRUE)
+  
+  # Information by comparison
+  for (var in args$vars){
+    Results = get(load(glue("{args$outdir}/DifferentialExpression{var}.RData")))
+    cat('\n### ', var ,'  \n',
+        '&nbsp;  \n\n',
+        sep = "",
+        file = report_out,
+        append = TRUE)
+    # Read data
+    cat(
+      # Open chunk
+      '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}\n',
+      '# Read data\n',
+      'Res = get(load("',args$outdir,'/DifferentialExpression', var,'.RData"))\n',
+      'St = names(Res)\n',
+      'Toptabs = sapply(names(Res), 
+                 function(est) sapply(names(Res[[est]]), 
+                                      function(tis) sapply(Res[[est]][[tis]], 
+                                                           function(x) x$TopTab, 
+                                                           simplify = FALSE),
+                                      simplify = FALSE),
+                 simplify = FALSE) ',  
+      # Close chunk
+      '\n```  \n\n','\n&nbsp;  \n\n',
+      sep ="",
+      file = report_out,
+      append = TRUE)
+    
+    # Take all tissues
+    Tissues = unique(unlist(sapply(Results, function(x) names(x)), use.names = FALSE))
+    for (tis in Tissues){
+      cat(
+        # Title
+        '\n#### ',tis,'  \n',
+        '\n&nbsp;  \n',
+        # Open chunk
+        '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}\n\n',
+        'Toptabs_tis = sapply(Toptabs, 
+           function(x) x[names(x) == "', tis,'"],
+           simplify = FALSE, USE.NAMES = TRUE) 
+
+Simp = sapply(Toptabs_tis, function(x) RX_ifelse(is.null(x$', tis,'[1]), NULL, x$', tis,'),
+              simplify = FALSE) 
+Toptabs_tis = Filter(Negate(is.null), Simp)
+
+Toptabs_tis_sig = sapply(Toptabs_tis, 
+           function(x) sapply(x, 
+                              function(x1) x1[x1$"adj.P.Val" <= 0.05,],
+                              simplify = FALSE, USE.NAMES = TRUE),
+           simplify = FALSE, USE.NAMES = TRUE) 
+
+Resume_tis = sapply(Toptabs_tis_sig, 
+           function(x) sapply(x, 
+                              function(x1) nrow(x1),
+                              simplify = FALSE, USE.NAMES = TRUE),
+           simplify = FALSE, USE.NAMES = TRUE)
+
+rows = unlist(sapply(Resume_tis, function(x) names(x), USE.NAMES = TRUE, simplify = FALSE))
+rows = unique(rows)
+# Por separado
+cols = names(Resume_tis)
+DT_tis0 = sapply(cols, function(col) sapply(rows, function(row) RX_ifelse(is.null(Resume_tis[[col]][[row]]), "-", Resume_tis[[col]][[row]]), USE.NAMES = T), USE.NAMES = T)
+datatable(DT_tis0, options = list(caption = "Resultados expresión diferencial ', tis,'"))
+
+# Conjunto 
+cols= St
+DT_tis = sapply(cols, function(col) sapply(rows, function(row) RX_ifelse(is.null(Resume_tis[[col]][[row]]), "-", Resume_tis[[col]][[row]]), USE.NAMES = T), USE.NAMES = T)
+DT_tis = datatable(DT_tis, caption = "Resultados expresión diferencial ', tis,'")', 
+        # Close chunk
+        '\n```  \n\n','\n&nbsp;  \n\n',
+        sep ="",
+        file = report_out,
+        append = TRUE)
+    }
+  }
+}
+
+# Create HTML
+rmarkdown::render(report_out)
+
 

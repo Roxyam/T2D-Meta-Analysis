@@ -31,11 +31,102 @@
 
 library(pacman)
 pacman::p_load(argparse)
+pacman::p_load(Biobase)
+pacman::p_load(DT)
+pacman::p_load(glue)
+pacman::p_load(limma)
+pacman::p_load(stringr)
+pacman::p_load(SummarizedExperiment) 
 
 
 # ~~~~~~~~~~~~ Functions ~~~~~~~~~~~~ #
 
 source("Functions/Functions.R")
+RX_contrast <- function(expmatrix, design, C){
+  # library(limma)
+  set.seed(2808) 
+  contMatrix <- makeContrasts(contrasts = C, levels = design)
+  fit <- lmFit(expmatrix, design)
+  fit2 <- contrasts.fit(fit, contMatrix)
+  Res <- eBayes(fit2)
+  Res$TopTab <- topTable(Res, number = Inf, adjust.method = "BH") #, sort.by = "logFC"
+  
+  return(Res)
+}
+
+RX_DiffExp <- function(phenoData, expressData , C, var="Group", studyType = "Array"){
+  #library(Biobase)
+  #library(stringr)
+  set.seed(2808)
+  if(length(var) == 2){
+    contrast = interaction(phenoData[,var[1]], phenoData[,var[2]])
+  }else{
+    contrast = phenoData[,var]
+  }
+  
+  design = model.matrix(~0+contrast)
+  colnames(design) <- str_replace(levels(contrast) , "-", "_")
+  
+  # Si es RNA-seq usamos voom
+  if (studyType == "RNA-seq"){
+    expressData = voom(expressData, design = design, plot = F)
+  }
+  # Top table
+  Res <- sapply(C, function(x) RX_contrast(expressData, design, x),
+                simplify = FALSE, USE.NAMES = TRUE)
+  return(Res)
+}
+
+# Global
+RX_DiffExpFinal <- function(Data, var1="Group", var2="Gender"){
+  # library(SummarizedExperiment)
+  # library(Biobase)
+  # library(glue) 
+  set.seed(2808) 
+  if(class(Data) == "ExpressionSet"){
+    phenoData = pData(Data)
+    expressData = exprs(Data)
+    studyType = "Array"
+  }else{
+    phenoData = colData(Data)
+    studyType = "RNA-seq"
+    expressData = assay(Data)      
+  }
+  # Tomamos las variables
+  Group = str_replace(levels(phenoData[,var1]) , "-", "_")
+  Gender = levels(phenoData[,var2])
+  Tissue = levels(phenoData$Tissue)
+  # Separamos por tejidos
+  phenoDatas = sapply(Tissue, function(x) phenoData[which(phenoData$Tissue == x),],
+                      simplify = FALSE, USE.NAMES = TRUE)
+  expressDatas = sapply(Tissue, function(x) expressData[,which(phenoData$Tissue == x)],
+                        simplify = FALSE, USE.NAMES = TRUE)
+  
+  V1 = str_replace(levels(phenoData[,var1]) , "-", "_")
+  V2 = levels(phenoData[,var2])
+  # Contrastes
+  'C1 = c(glue("{V1[2]} - {V1[1]}"))
+  C2 = c(glue("({Group[2]}.{Gender} - {Group[1]}.{Gender})"))
+  C3 = c(C2, glue("{C2[1]} - {C2[2]}"))'
+  # Contrastes
+  C1 = combn(rev(Group), m=2, FUN = paste,collapse=" - ", simplify = TRUE)
+  
+  C2 = sapply(Gender, 
+              function(x) combn(levels(interaction(Group, x))[match(rev(Group), strsplit2(levels(interaction(Group, x)),
+                                                                                          split = ".", fixed = TRUE)[,1])],
+                                m=2, FUN = paste,collapse=" - ",
+                                simplify = TRUE), simplify = F)
+  
+  C3 = sapply(seq(C1), function(i) glue("({C2$M[i]}) - ({C2$F[i]})"))
+  C3 = c(unlist(C2), C3, use.names = FALSE)
+  
+  
+  Tt = sapply(Tissue, function(x) c(RX_DiffExp(phenoDatas[[x]], expressDatas[[x]] , C1, var=var1, studyType = studyType),
+                                    RX_DiffExp(phenoDatas[[x]], expressDatas[[x]], C3, var=c(var1, var2), studyType = studyType)),
+              simplify = FALSE, USE.NAMES = TRUE) 
+  
+  return(Tt)
+}
 
 
 # ~~~~~~~~~~~~ Parameters ~~~~~~~~~~~~ #
@@ -91,6 +182,8 @@ args <- parser$parse_args()
 report_out = glue("{args$outdir}/DifferentialExpressionReport.rmd")
 
 #------------- Differential expression
+cat("\n\t> Differential expression\n")
+cat("\n---------------------------------------------\n")
 for (var in args$vars){
   Results = c()
   Studies_out = c()
@@ -129,6 +222,8 @@ for (var in args$vars){
 }
 
 #------------- Report
+cat("\n\t> Report\n")
+cat("\n---------------------------------------------\n")
 if(isTRUE(args$report)){
   # File info
   cat('---
@@ -247,7 +342,7 @@ rows = unique(rows)
 # Por separado
 cols = names(Resume_tis)
 DT_tis0 = sapply(cols, function(col) sapply(rows, function(row) RX_ifelse(is.null(Resume_tis[[col]][[row]]), "-", Resume_tis[[col]][[row]]), USE.NAMES = T), USE.NAMES = T)
-datatable(DT_tis0, options = list(caption = "Resultados expresión diferencial ', tis,'"))
+datatable(DT_tis0, caption = "Resultados expresión diferencial ', tis,'")
 
 # Conjunto 
 cols= St
@@ -255,6 +350,7 @@ DT_tis = sapply(cols, function(col) sapply(rows, function(row) RX_ifelse(is.null
 DT_tis = datatable(DT_tis, caption = "Resultados expresión diferencial ', tis,'")', 
         # Close chunk
         '\n```  \n\n','\n&nbsp;  \n\n',
+        '\n***  \n',
         sep ="",
         file = report_out,
         append = TRUE)
@@ -265,4 +361,5 @@ DT_tis = datatable(DT_tis, caption = "Resultados expresión diferencial ', tis,'
 # Create HTML
 rmarkdown::render(report_out)
 
-
+cat("\nDone\n")
+cat("\n---------------------------------------------\n")

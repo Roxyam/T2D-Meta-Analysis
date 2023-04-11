@@ -57,7 +57,6 @@ RX_MetaAnalysis_prep <- function(Studies, # Studies accesion to include
                                  SE_coef = c("SE", "coefSE"), # SE to take
                                  method = "DL" 
 ){
-  library(glue)
   # Check if the arguments are suitable
   match.arg(Tissue, several.ok = TRUE)
   #match.arg(Disease, several.ok = FALSE)
@@ -121,9 +120,8 @@ RX_MetaAnalysis_prep <- function(Studies, # Studies accesion to include
 
 # ~~~~~~~~~~~~ Parameters ~~~~~~~~~~~~ #
 
-parser <- ArgumentParser(description="This script Compute differential
-                                      expression analysis of a set of
-                                      studies")
+parser <- ArgumentParser(description="This script compute meta analysis
+                                      for a set of studies")
 # Studies
 parser$add_argument("-s", "--studies",
                     action="store",
@@ -151,21 +149,29 @@ parser$add_argument("-t", "--tissue",
                     required=TRUE,
                     help="Tissue or tissues to include.")
 
-# Tissue
+# Contrasts
 parser$add_argument("-c", "--contrast",
                     action="store",
                     type="character",
                     required=TRUE,
                     help="Contrast or contrasts to include.")
 
-# Out file
-parser$add_argument("-o", "--fileout",
+# Out dir
+parser$add_argument("-o", "--outdir",
                     action="store",
                     type="character",
-                    default="Meta-analysis_out.RData",
+                    default=".",
+                    help="Where you would like the output files to be placed,
+                          by default the current directory will be taken.")
+
+# Output files prefix
+parser$add_argument("-p", "--prefix",
+                    action="store",
+                    type="character",
+                    default="Meta-analysis",
                     required=TRUE,
-                    help="Path and name of the file to
-                          save the results")
+                    help="Prefix to use in output files, by default is
+                          'Meta-analysis'.")
 # Method
 parser$add_argument("-m", "--method",
                     action="store",
@@ -173,11 +179,31 @@ parser$add_argument("-m", "--method",
                     default="coefSE",
                     choices = c("SE", "coefSE"), 
                     help="Method for SS calculating.")
+# Report
+parser$add_argument("-r", "--report",
+                    action="store",
+                    type="character",
+                    dafault=TRUE,
+                    help="Create an R Markdown and HTML with the results.")
 
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
 #------------- Checking arguments
 args <- parser$parse_args()
+
+### XX NONO
+args = list()
+args$studies = "All"
+args$tissue = "SAT"
+args$filein = "../Data/DE/DifferentialExpressionObesity.RData"
+args$outdir = "."
+args$prefix = "Meta-analysis"
+args$contrast = "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"
+args$report = TRUE
+
+#load(file="../Data/DE/DifferentialExpressionObesity.RData")
+#Rscript 05MetaAnalysis.R -t SAT -f "../Data/DiffExprsObesity.RData" -o ../Data/Meta-analysis_Obesity_all.RData -c "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"
+
 
 # Load the data
 Datas = get(load(args$filein))
@@ -221,7 +247,8 @@ resultMAs = mclapply(Contrast,
 names(resultMAs) = Contrast
 
 # Save
-save(resultMAs, file = args$fileout) 
+resultMAs = list()
+save(resultMAs, file = glue("{args$outdir}/{args$prefix}.RData")) 
 
 cat("\n---------------------------------------------\n")
 

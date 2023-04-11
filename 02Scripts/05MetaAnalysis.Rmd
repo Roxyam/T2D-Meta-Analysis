@@ -60,14 +60,14 @@ RX_getSE <- function(Data # Fit limma
 
 RX_MetaAnalysis_prep <- function(Studies, # Studies accesion to include
                                  Tissue = c("SAT", "VAT", "LSAT"), # One or several tissues to include in the meta-analysis to include
+                                 Contrast, # Contrast to use
                                  Datas, # data
                                  SE_coef = c("SE", "coefSE") # SE to take
                                  ){
   # Check if the arguments are suitable
   match.arg(Tissue, several.ok = TRUE)
   #match.arg(Disease, several.ok = FALSE)
-  match.arg(SE_coef, several.ok = FALSE) 
-  print("X1")
+  match.arg(SE_coef, several.ok = FALSE)
   
   # Extract the information from the indicated tissues and contrast
   Data0 = sapply(Studies,
@@ -81,40 +81,30 @@ RX_MetaAnalysis_prep <- function(Studies, # Studies accesion to include
   Data = unlist(unlist(Data0, recursive = FALSE), recursive = FALSE)
   #names(Data) = Studies
   Data = Filter(Negate(is.null), Data)
-  print("X2")
   
   #------------- 1. Preparing input for meta-analysis
   DataSE = sapply(names(Data), function(x) RX_getSE(Data[[x]]), simplify = FALSE) 
   IDs = unlist(sapply(DataSE, function(x) rownames(x), simplify = TRUE), use.names = FALSE)
-  cat(glue("\n{length(unique(IDs))} of the {length(IDs)} genes have have been taken."), "\n") 
+  cat(glue("\n{length(unique(IDs))} of the {length(IDs)} genes have been taken."), "\n") 
   IDs = unique(IDs)
-  
-  print("X3")
   
   # Get SE
   DataSE = sapply(names(Data), function(x) RX_getSE(Data[[x]]), simplify = FALSE) 
-  
-  print("X4")
   
   # LogFC matrix
   MatLogFC <- sapply(DataSE, function(x) x[IDs, "logFC"]) 
   rownames(MatLogFC) <- IDs
   
-  print("X5")
-    
   # SD matrix
   MatSE <- sapply(DataSE, function(x) x[IDs, SE_coef]) 
   rownames(MatSE) <- IDs
-  
-  print("X6")
   
   # Filter keeping the genes that appear in more than one study
   keep = which(rowSums(!is.na(MatSE)) > 1)
   MatLogFC = MatLogFC[keep,]
   MatSE = MatSE[keep,] 
   
-  print("X7")
-  return(c(MatLogFC, MatSE))
+  return(list("MatLogFC" = MatLogFC, "MatSE" = MatSE))
 }
 ```
 
@@ -125,10 +115,11 @@ RX_MetaAnalysis_prep <- function(Studies, # Studies accesion to include
 args = list()
 args$studies = "ALL"
 args$tissue = "SAT"
-args$filein = "../Data/DiffExprs_Obesity.RData"
-args$outdir = "."
+args$filein = "../Data/DifferentialExpressionObesity.RData"
+args$outdir = "../Data/Obesity"
 args$prefix = "Meta-analysis"
-args$contrast = "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"
+#args$contrast = "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"
+args$contrast = "Ob - C"
 args$report = TRUE
 
 #load(file="../Data/DE/DifferentialExpressionObesity.RData")
@@ -147,7 +138,7 @@ if (args$studies != "ALL"){
   Studies = names(Datas)
 }
 
-# Cheek
+# Check
 if (! all(Studies %in% names(Datas))){
   cat("The indicated file does not contain information on",
       "the following studies. \n")
@@ -161,37 +152,40 @@ Tissue = stringr::str_split_1(args$tissue, pattern = ",")
 Tissue = trimws(Tissue, whitespace = "[ \t\r\n\\.]")
 
 # Get the contrasts
-Contrast = stringr::str_split_1(args$contrast, pattern = ",")
-Contrast = trimws(Contrast, whitespace = "[ \t\r\n\\.]")
+Contrasts = stringr::str_split_1(args$contrast, pattern = ",")
+Contrasts = trimws(Contrasts, whitespace = "[ \t\r\n\\.]")
 
+method = "DL"
+
+# Output directory
+if(! file.exists(args$outdir)){
+  system(glue("mkdir {args$outdir}"))
+}
+# Plots directory
+system(glue("mkdir {args$outdir}/Plots"))
 ```
 
 ```{r}
 #------------- 1. Meta-analysis for genes
 cat("\n---------------------------------------------\n")
-cat("Analyzing...\n")
+cat("Analyzing...\n") 
+contrast = Contrasts[[1]]
 
-c(MatLogFC, MatSE) = RX_MetaAnalysis_prep(Studies = Studies,
-                                                      Tissue = Tissue,
-                                                      Datas = Datas,
-                                          SE_coef = "coefSE")
-
-resultMAs = mclapply(Contrast, 
-                     function(C) RX_MetaAnalysis_prep(Studies = Studies,
-                                                      Tissue = Tissue,
-                                                      Datas = Datas, 
-                                                      Contrast = C))
+Mats = RX_MetaAnalysis_prep(Studies = Studies,
+                            Tissue = Tissue,
+                            Datas = Datas,
+                            SE_coef = "coefSE",
+                            Contrast = contrast)
+  #------------- 1. Meta-analysis for genes  
+  MA <- sapply(rownames(Mats$MatLogFC),
+               function(x) metafor::rma(yi = Mats$MatLogFC[x, ],
+                                        sei = Mats$MatSE[x, ],
+                                        method = method,
+                                        verbose = FALSE), simplify = FALSE, USE.NAMES = TRUE ) 
 ```
 
 
-
 ```{r}
-  #------------- 1. Meta-analysis for genes  
-  MA <- sapply(rownames(MatLogFC),
-               function(x) metafor::rma(yi = MatLogFC[x, ],
-                                        sei = MatSE[x, ],
-                                        method = method,
-                                        verbose = FALSE), simplify = FALSE, USE.NAMES = TRUE ) 
   # Data frame including the detailed results.
   resultMA <- as.data.frame(do.call("rbind",
                                     sapply(MA,
@@ -206,8 +200,95 @@ resultMAs = mclapply(Contrast,
   resultMA$p.adjust.fdr <- stats::p.adjust(resultMA$pvalue, method = "fdr")
   resultMA$p.adjust.BY  <- stats::p.adjust(resultMA$pvalue, method = "BY")
   resultMA$logFDR <- -log10(resultMA$p.adjust.fdr)
-  resultMA$N <- rowSums(!is.na(MatSE))
+  resultMA$N <- rowSums(!is.na(Mats$MatSE))
   # Return
 ```
 
+```{r}
+# NO
+sig.genes.df = resultMA[which(resultMA[, "p.adjust.fdr"] < 0.1),]
+#sig.genes.df = sig.results
+for (i in rownames(sig.genes.df)){
+  #define studies for each function (not NA)
+  estudios <- stringr::str_split_i(colnames(Mats$MatSE)[!is.na(Mats$MatSE)[i,]], pattern = "\\.", i=1)
+
+  #influence info 1:
+  #number of studies where the sign of the logOR is the same  of the global logOR:
+  sig.genes.df[i, "infl.same.sign.logFC"] <- sum(sign(MA[[i]]$yi)== rep(sign(MA[[i]]$b),length(estudios)))
+
+  #influence info 2: how many studies could be influencers?
+  inf <- influence(MA[[i]])
+  res <- paste(estudios[inf$is.infl], collapse = ",")
+  sig.genes.df[i, "infl.nstudies"] <- ifelse(res =="", "non", res)
+
+  #sensivity analysis
+  l1 <-as.data.frame(leave1out(MA[[i]]))
+  rownames(l1) <- estudios
+
+  #1. p.value about differences between all estimates from leave one out
+  #   and global estimate)
+  sig.genes.df[i, "sensi.global"] <-t.test(x= l1$estimate,
+                                           mu=as.numeric(MA[[i]]$b))$p.value
+  #2. number of  studies where pvalue > 0.05
+  # (we hope p-values < 0.05, significant estimates)
+  res2 <- paste(estudios[l1$pval > 0.05], collapse = ",")
+  sig.genes.df[i, "sensi.specific"] <- ifelse(res2 =="", "all.p.values < 0.05", res2)
+}
+```
+
+```{r}
+sig.results <- resultMA[resultMA[, "p.adjust.fdr"] < 0.05,]
+sig.results = sig.results[order(sig.results[, "p.adjust.BY"]),]
+
+for (i in seq(nrow(sig.results))){
+  mygenes <- rownames(sig.results)[i]
+  res <- MA[[mygenes]]
+  #FOREST PLOT
+  # png (filename = paste("FOREST_", mygenes,".png", sep =""), width = 960 ,
+  #      height = 960, res = 200)
+  'png (filename = paste(gsub("-","_",mygenes),"_FOREST",".png", sep =""), width = 960 ,
+       height = 960, res = 200)'
+  forest(res,
+         slab = toupper(colnames(Mats$MatLogFC)), #Nombre de los estudios
+         xlab="logFC", cex=0.7,
+         mlab=paste(method, "Model for All Studies", sep = " "),
+         border = "black", #Color del borde del rombo
+         col = "red", #Color del rombo
+         main = paste("\n", mygenes, sep=""))
+  text( 9,-3, "logFC [IC 95%]", pos=2, cex = 0.7)
+  'dev.off()'
+  
+  #FUNNEL PLOT
+  'png (filename = paste(gsub("-","_",mygenes),"_FUNNEL", ".png", sep =""), width = 960 ,
+       height = 960, res = 200)'
+  par(mfrow=c(2,2))
+  funnel(res, main="Standard Error", back ="darkslategray1",
+         xlab = paste("logFC (", mygenes, ")",sep =""))
+  funnel(res, yaxis="vi", main="Sampling Variance", back ="darkslategray1",
+         xlab = paste("logFC (", mygenes, ")",sep =""))
+  funnel(res, yaxis="seinv", main="Inverse Standard Error",
+         back ="darkslategray1", xlab = paste("logFC (", mygenes, ")",sep =""))
+  funnel(res, yaxis="vinv", main="Inverse Sampling Variance",
+         back ="darkslategray1",  xlab = paste("logFC (", mygenes, ")",sep =""))
+  par(mfrow=c(1,1))
+  'dev.off() '
+  
+   #INFLUENCE PLOTS
+  # That shows various diagnostic measures
+  'png (filename = paste(gsub("-","_",mygenes), "_INFLUENCE", ".png", sep =""), width = 960 ,
+       height = 960, res = 200) ##CAMBIAR'
+  inf <- influence(res)
+  #plot(inf, plotfb = T)#"plotfb" is not a graphical parameter
+  plot(inf)
+  'dev.off()'
+}
+
+res
+```
+
+
+
+```{r}
+
+```
 

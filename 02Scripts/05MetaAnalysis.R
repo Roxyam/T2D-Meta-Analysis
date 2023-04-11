@@ -193,9 +193,9 @@ args <- parser$parse_args()
 
 ### XX NONO
 args = list()
-args$studies = "All"
+args$studies = "ALL"
 args$tissue = "SAT"
-args$filein = "../Data/DE/DifferentialExpressionObesity.RData"
+args$filein = "../Data/DiffExprs_Obesity.RData"
 args$outdir = "."
 args$prefix = "Meta-analysis"
 args$contrast = "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"

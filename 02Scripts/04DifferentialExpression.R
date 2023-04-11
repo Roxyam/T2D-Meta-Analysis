@@ -152,20 +152,20 @@ parser$add_argument("-v", "--vars",
                           differential expression.")
 
 # Data directory
-parser$add_argument("-o", "--outdir",
-                    action="store",
-                    type="character",
-                    default=".",
-                    help="Where you would like the output files to be placed,
-                          by default the current directory will be taken.")
-
-# Output directory
 parser$add_argument("-i", "--indir",
                     action="store",
                     type="character",
                     default=".",
                     help="Data directory, by default the current
                           directory will be taken.")
+
+# Output directory
+parser$add_argument("-o", "--outdir",
+                    action="store",
+                    type="character",
+                    default=".",
+                    help="Where you would like the output files to be placed,
+                          by default the current directory will be taken.")
 
 # Report
 parser$add_argument("-r", "--report",

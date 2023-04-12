@@ -185,6 +185,12 @@ parser$add_argument("-r", "--report",
                     type="character",
                     dafault=TRUE,
                     help="Create an R Markdown and HTML with the results.")
+# Repeat
+parser$add_argument("-re", "--redo",
+                    action="store_true",
+                    default = FALSE,
+                    help="Repeat the analysis, if it is not specified,
+                          the files of previous executions are taken")
 
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
@@ -200,6 +206,7 @@ args$outdir = "."
 args$prefix = "Meta-analysis"
 args$contrast = "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"
 args$report = TRUE
+args$redo = FALSE
 
 #load(file="../Data/DE/DifferentialExpressionObesity.RData")
 #Rscript 05MetaAnalysis.R -t SAT -f "../Data/DiffExprsObesity.RData" -o ../Data/Meta-analysis_Obesity_all.RData -c "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"

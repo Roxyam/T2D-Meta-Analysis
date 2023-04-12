@@ -1,0 +1,433 @@
+---
+title: "Meta-analysis"
+author: "Roxana Andreea Moldovan Moldovan"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: false
+    toc_float: false
+    number_sections: false 
+    code_folding: hide
+    theme: flatly
+    bg: '#FFFFFF'
+    fg: '#202020'
+    primary: '#90C432'
+    secondary: '#2494b5' 
+  pdf_document:
+    extra_dependencies: "subfig"
+linkcolor: blue
+urlcolor: blue
+citecolor: blue
+header-includes:
+- \usepackage{subfig}
+- \usepackage{float}
+fig_caption: yes 
+link-citations: TRUE
+---
+
+```{r}
+# ~~~~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~ ** ~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~~~~ #
+
+
+# ~~~~~~~~~~~~ Loading packages ~~~~~~~~~~~~ #
+
+library(pacman)
+pacman::p_load(argparse)
+pacman::p_load(glue)
+pacman::p_load(limma)
+pacman::p_load(metafor)
+pacman::p_load(parallel)
+pacman::p_load(stringr)
+
+
+# ~~~~~~~~~~~~ Functions ~~~~~~~~~~~~ #
+
+source("../Functions/Functions.R")
+
+RX_getSE <- function(Data # Fit limma
+){
+  # Método 1:
+  TopTab <- topTable(Data, number = "all", confint=TRUE, adjust.method = "fdr", sort.by = "none")
+  # Calculamos el SE
+  TopTab[, "SE"] <- (TopTab[, "CI.R"] - TopTab[, "CI.L"])/ 3.92
+  
+  # Método 2:
+  coefSE = sqrt(Data$s2.post) * Data$stdev.unscaled
+  TopTab[, c("coef", "coefSE")] = c(Data$coefficients, coefSE)
+  
+  return(TopTab)
+}
+
+RX_MetaAnalysis_prep <- function(Studies, # Studies accesion to include
+                                 Tissue = c("SAT", "VAT", "LSAT"), # One or several tissues to include in the meta-analysis to include
+                                 Contrast, # Contrast to use
+                                 Datas, # data
+                                 SE_coef = c("SE", "coefSE") # SE to take
+                                 ){
+  # Check if the arguments are suitable
+  match.arg(Tissue, several.ok = TRUE)
+  #match.arg(Disease, several.ok = FALSE)
+  match.arg(SE_coef, several.ok = FALSE)
+  
+  # Extract the information from the indicated tissues and contrast
+  Data0 = sapply(Studies,
+                 function(st) sapply(Tissue,
+                                     function(ts) sapply(Contrast,
+                                                         function(c) Datas[[st]][[ts]][[c]], 
+                                                         simplify = FALSE),
+                                     simplify = FALSE),
+                 simplify = FALSE)
+  
+  Data = unlist(unlist(Data0, recursive = FALSE), recursive = FALSE)
+  names(Data) = Studies
+  Data = Filter(Negate(is.null), Data)
+  
+  #------------- 1. Preparing input for meta-analysis
+  # Get SE
+  DataSE = sapply(names(Data), function(x) RX_getSE(Data[[x]]), simplify = FALSE) 
+  # Get Gene and annotation
+  IDs = unlist(sapply(DataSE, function(x) rownames(x), simplify = TRUE), use.names = FALSE)
+  SYMBOL = sapply(Data, function(x) x$TopTab[,c("ENTREZID", "ENSEMBL", "SYMBOL")], simplify = FALSE)
+  ANOT = do.call("rbind", SYMBOL)
+  cat(glue("\n{length(unique(IDs))} of the {length(IDs)} genes have been taken."), "\n") 
+  IDs = unique(IDs)
+  ANOT = ANOT[match(unique(IDs), ANOT$ENTREZID),]
+  rownames(ANOT) = ANOT$ENTREZID
+  
+  # LogFC matrix
+  MatLogFC <- sapply(DataSE, function(x) x[IDs, "logFC"]) 
+  rownames(MatLogFC) <- IDs
+  
+  # SD matrix
+  MatSE <- sapply(DataSE, function(x) x[IDs, SE_coef]) 
+  rownames(MatSE) <- IDs
+  
+  # Filter keeping the genes that appear in more than one study
+  keep = which(rowSums(!is.na(MatSE)) > 1)
+  MatLogFC = MatLogFC[keep,]
+  MatSE = MatSE[keep,] 
+  
+  return(list("MatLogFC" = MatLogFC, "MatSE" = MatSE, Anot = ANOT))
+}
+Data$`E_MEXP_1425.SAT.Ob - C`$TopTab
+```
+
+```{r}
+#------------- Checking arguments 
+
+### XX NONO
+args = list()
+args$studies = "ALL"
+args$tissue = "SAT"
+args$filein = "../Data/DifferentialExpressionObesity.RData"
+args$outdir = "../Data/Obesity"
+args$prefix = "Meta-analysis"
+#args$contrast = "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"
+args$contrast = "Ob - C"
+args$report = TRUE
+args$redo = FALSE
+args$plim = 0.05
+
+
+#load(file="../Data/DE/DifferentialExpressionObesity.RData")
+#Rscript 05MetaAnalysis.R -t SAT -f "../Data/DiffExprsObesity.RData" -o ../Data/Meta-analysis_Obesity_all.RData -c "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"
+
+
+# Load the data
+Datas = get(load(args$filein))
+
+# Get the studies
+if (args$studies != "ALL"){
+  # Take studies to include
+  Studies = stringr::str_split_1(args$studies, pattern = ",")
+  Studies = trimws(Studies, whitespace = "[ \t\r\n\\.]")
+} else{
+  Studies = names(Datas)
+}
+
+# Check
+if (! all(Studies %in% names(Datas))){
+  cat("The indicated file does not contain information on",
+      "the following studies. \n")
+  cat("\t", Studies[! Studies %in% names(Datas)])
+  cat("\n")
+  stop("Please review input.",call. = FALSE)
+}
+
+# Get the tissues
+Tissue = stringr::str_split_1(args$tissue, pattern = ",")
+Tissue = trimws(Tissue, whitespace = "[ \t\r\n\\.]")
+
+# Get the contrasts
+Contrasts = stringr::str_split_1(args$contrast, pattern = ",")
+Contrasts = trimws(Contrasts, whitespace = "[ \t\r\n\\.]")
+
+method = "DL"
+
+PlotsDir = glue("{args$outdir}/Plots")
+
+# Output directory
+if(! file.exists(args$outdir)){
+  system(glue("mkdir {args$outdir}"))
+}
+# Plots directory
+system(glue("mkdir PlotsDir"))
+```
+
+```{r}
+#------------- 1. Meta-analysis for genes
+cat("\n---------------------------------------------\n")
+cat("Analyzing...\n") 
+contrast = Contrasts[[1]]
+Mats_out = glue("{args$outdir}/args$prefix_mats.RData")
+MA_out = glue("{args$outdir}/args$prefix_MA.RData")
+DF_out = glue("{args$outdir}/args$prefix_DF.RData")
+
+if(file.exists(Mats_out) & isFALSE(args$redo)){
+  # Load previous data
+  load(file=Mats_out)
+}else{
+  Mats = RX_MetaAnalysis_prep(Studies = Studies,
+                            Tissue = Tissue,
+                            Datas = Datas,
+                            SE_coef = "coefSE",
+                            Contrast = contrast)
+  save(Mats, file = Mats_out)
+}
+
+if(file.exists(MA_out) & isFALSE(args$redo)){
+  # Load previous data
+  load(file=MA_out)
+}else{
+  #------------- 1. Meta-analysis for genes  
+  MA <- sapply(rownames(Mats$MatLogFC),
+               function(x) metafor::rma(yi = Mats$MatLogFC[x, ],
+                                        sei = Mats$MatSE[x, ],
+                                        method = method,
+                                        verbose = FALSE), simplify = FALSE, USE.NAMES = TRUE ) 
+  save(MA, file = MA_out)
+}
+
+if(file.exists(DF_out) & isFALSE(args$redo)){
+  # Load previous data
+  load(file=DF_out)
+}else{
+  # Data frame including the detailed results.
+  resultMA <- as.data.frame(do.call("rbind",
+                                    sapply(MA,
+                                           function(x){c("interv_inf" = x$ci.lb, 
+                                                         "Summary_logFC" = x$b, 
+                                                         "interv_sup" = x$ci.ub,
+                                                         "pvalue" = x$pval,
+                                                         x$QE,x$QEp, x$se,
+                                                         x$tau2, x$I2, x$H2)},
+                                           simplify = FALSE)))
+  # Adjust p.values
+  resultMA$p.adjust.fdr <- stats::p.adjust(resultMA$pvalue, method = "fdr")
+  resultMA$p.adjust.BY  <- stats::p.adjust(resultMA$pvalue, method = "BY")
+  resultMA$logFDR <- -log10(resultMA$p.adjust.fdr)
+  resultMA$N <- rowSums(!is.na(Mats$MatSE))
+  save(resultMA, file = DF_out)
+}
+Datas$E_MEXP_1425$SAT$`Ob - C`$TopTab
+
+
+```
+
+```{r}
+sigData = resultMA[resultMA[, "p.adjust.fdr"] < args$plim,]
+for (gene in rownames(sigData)[1]){
+  res <- MA[[gene]]
+  # Forest plot
+  name = glue("{PlotsDir}/{args$prefix}_{gene}forest.svg")
+  #svg(name)
+  forest(res, 
+         slab = toupper(colnames(Mats$MatLogFC)),
+         xlab="Fold Change", cex=0.7,
+         mlab=paste("DL", "Model for All Studies", sep = " "), col = "red", 
+         main = paste("\n", Mats$Anot[gene, "SYMBOL"] , " (", gene, ")",sep=""))    
+  text( 9,-3, "Odds Ratio [IC 95%]", pos=2, cex = 0.7)
+  dev.off()
+  
+}
+
+Datas$E_MEXP_1425$SAT$`Ob - C`$
+
+```
+
+
+
+```{r}
+sig.results <- resultMA[resultMA[, "p.adjust.fdr"] < 0.05,]
+sig.results = sig.results[order(sig.results[, "p.adjust.BY"]),]
+
+for (i in 1){#seq(nrow(sig.results))){
+  mygenes <- rownames(sig.results)[i]
+  res <- MA[[mygenes]]
+  #FOREST PLOT
+  # png (filename = paste("FOREST_", mygenes,".png", sep =""), width = 960 ,
+  #      height = 960, res = 200)
+  'png (filename = paste(gsub("-","_",mygenes),"_FOREST",".png", sep =""), width = 960 ,
+       height = 960, res = 200)'
+  a = forest(res,
+         slab = toupper(colnames(Mats$MatLogFC)), #Nombre de los estudios
+         xlab="logFC", cex=0.7,
+         mlab=paste(method, "Model for All Studies", sep = " "),
+         border = "black", #Color del borde del rombo
+         col = "red", #Color del rombo
+         main = paste("\n", mygenes, sep=""))
+  text( 9,-3, "logFC [IC 95%]", pos=2, cex = 0.7)
+  'dev.off()'
+  
+  #FUNNEL PLOT
+  'png (filename = paste(gsub("-","_",mygenes),"_FUNNEL", ".png", sep =""), width = 960 ,
+       height = 960, res = 200)'
+  par(mfrow=c(2,2))
+  funnel(res, main="Standard Error", back ="darkslategray1",
+         xlab = paste("logFC (", mygenes, ")",sep =""))
+  funnel(res, yaxis="vi", main="Sampling Variance", back ="darkslategray1",
+         xlab = paste("logFC (", mygenes, ")",sep =""))
+  funnel(res, yaxis="seinv", main="Inverse Standard Error",
+         back ="darkslategray1", xlab = paste("logFC (", mygenes, ")",sep =""))
+  funnel(res, yaxis="vinv", main="Inverse Sampling Variance",
+         back ="darkslategray1",  xlab = paste("logFC (", mygenes, ")",sep =""))
+  par(mfrow=c(1,1))
+  'dev.off() '
+  
+   #INFLUENCE PLOTS
+  # That shows various diagnostic measures
+  'png (filename = paste(gsub("-","_",mygenes), "_INFLUENCE", ".png", sep =""), width = 960 ,
+       height = 960, res = 200) ##CAMBIAR'
+  inf <- influence(res)
+  #plot(inf, plotfb = T)#"plotfb" is not a graphical parameter
+  plot(inf)
+  'dev.off()'
+}
+
+res
+```
+
+```{r}
+  forest(res, 
+         slab = toupper(colnames(Mats$MatLogFC)),
+         xlab="Fold Change", cex=0.7,
+         mlab=paste("DL", "Model for All Studies", sep = " "), col = "red", 
+         main = paste("\n", Mats$Anot[gene, "SYMBOL"] , " (", gene, ")",sep=""))    
+  text( 9,-3, "Odds Ratio [IC 95%]", pos=2, cex = 0.7)
+```
+
+
+```{r}
+library(metaviz)
+viz_forest(x = res, variant = "classic")
+```
+```{r}
+library(ggplot2)
+a = viz_funnel(res, sig_contours = FALSE,
+               addev_contours = FALSE,
+               trim_and_fill = FALSE,
+               egger = TRUE,
+               contours_col = "Greens") 
+a + scale_fill_manual(values=c("red", "red", "green", "black", "purple", "red", "purple"))
+a$scales
+layer_scales(a)$y$range$range
+
+a  + coord_cartesian(ylim = c(0.192,-0.01)) 
+
+homeopath[, c("d", "se")]
+age <- factor(Studies, labels = Studies)
+```
+
+```{r}
+class(funnel(res))
+```
+
+
+```{r}
+# NO
+sig.genes.df = resultMA[which(resultMA[, "p.adjust.fdr"] < 0.05),]
+#sig.genes.df = sig.results
+for (i in 1){#rownames(sig.genes.df)){
+  #define studies for each function (not NA)
+  estudios <- stringr::str_split_i(colnames(Mats$MatSE)[!is.na(Mats$MatSE)[i,]], pattern = "\\.", i=1)
+
+  #influence info 1:
+  #number of studies where the sign of the logOR is the same  of the global logOR:
+  sig.genes.df[i, "infl.same.sign.logFC"] <- sum(sign(MA[[i]]$yi)== rep(sign(MA[[i]]$b),length(estudios)))
+
+  #influence info 2: how many studies could be influencers?
+  inf <- influence(MA[[i]])
+  res <- paste(estudios[inf$is.infl], collapse = ",")
+  sig.genes.df[i, "infl.nstudies"] <- ifelse(res =="", "non", res)
+
+  #sensivity analysis
+  l1 <-as.data.frame(leave1out(MA[[i]]))
+  rownames(l1) <- estudios
+
+  #1. p.value about differences between all estimates from leave one out
+  #   and global estimate)
+  sig.genes.df[i, "sensi.global"] <-t.test(x= l1$estimate,
+                                           mu=as.numeric(MA[[i]]$b))$p.value
+  #2. number of  studies where pvalue > 0.05
+  # (we hope p-values < 0.05, significant estimates)
+  res2 <- paste(estudios[l1$pval > 0.05], collapse = ",")
+  sig.genes.df[i, "sensi.specific"] <- ifelse(res2 =="", "all.p.values < 0.05", res2)
+}
+```
+
+```{r}
+sig.results <- resultMA[resultMA[, "p.adjust.fdr"] < 0.05,]
+sig.results = sig.results[order(sig.results[, "p.adjust.BY"]),]
+
+for (i in 1){#seq(nrow(sig.results))){
+  mygenes <- rownames(sig.results)[i]
+  res <- MA[[mygenes]]
+  #FOREST PLOT
+  # png (filename = paste("FOREST_", mygenes,".png", sep =""), width = 960 ,
+  #      height = 960, res = 200)
+  'png (filename = paste(gsub("-","_",mygenes),"_FOREST",".png", sep =""), width = 960 ,
+       height = 960, res = 200)'
+  forest(res,
+         slab = toupper(colnames(Mats$MatLogFC)), #Nombre de los estudios
+         xlab="logFC", cex=0.7,
+         mlab=paste(method, "Model for All Studies", sep = " "),
+         border = "black", #Color del borde del rombo
+         col = "red", #Color del rombo
+         main = paste("\n", mygenes, sep=""))
+  text( 9,-3, "logFC [IC 95%]", pos=2, cex = 0.7)
+  'dev.off()'
+  
+  #FUNNEL PLOT
+  'png (filename = paste(gsub("-","_",mygenes),"_FUNNEL", ".png", sep =""), width = 960 ,
+       height = 960, res = 200)'
+  par(mfrow=c(2,2))
+  funnel(res, main="Standard Error", back ="darkslategray1",
+         xlab = paste("logFC (", mygenes, ")",sep =""))
+  funnel(res, yaxis="vi", main="Sampling Variance", back ="darkslategray1",
+         xlab = paste("logFC (", mygenes, ")",sep =""))
+  funnel(res, yaxis="seinv", main="Inverse Standard Error",
+         back ="darkslategray1", xlab = paste("logFC (", mygenes, ")",sep =""))
+  funnel(res, yaxis="vinv", main="Inverse Sampling Variance",
+         back ="darkslategray1",  xlab = paste("logFC (", mygenes, ")",sep =""))
+  par(mfrow=c(1,1))
+  'dev.off() '
+  
+   #INFLUENCE PLOTS
+  # That shows various diagnostic measures
+  'png (filename = paste(gsub("-","_",mygenes), "_INFLUENCE", ".png", sep =""), width = 960 ,
+       height = 960, res = 200) ##CAMBIAR'
+  inf <- influence(res)
+  #plot(inf, plotfb = T)#"plotfb" is not a graphical parameter
+  plot(inf)
+  'dev.off()'
+}
+
+res
+```
+
+
+
+```{r}
+
+```
+

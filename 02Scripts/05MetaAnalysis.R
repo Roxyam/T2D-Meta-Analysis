@@ -52,15 +52,14 @@ RX_getSE <- function(Data # Fit limma
 
 RX_MetaAnalysis_prep <- function(Studies, # Studies accesion to include
                                  Tissue = c("SAT", "VAT", "LSAT"), # One or several tissues to include in the meta-analysis to include
-                                 Datas, # data
                                  Contrast, # Contrast to use
-                                 SE_coef = c("SE", "coefSE"), # SE to take
-                                 method = "DL" 
+                                 Datas, # data
+                                 SE_coef = c("SE", "coefSE") # SE to take
 ){
   # Check if the arguments are suitable
   match.arg(Tissue, several.ok = TRUE)
   #match.arg(Disease, several.ok = FALSE)
-  match.arg(SE_coef, several.ok = FALSE) 
+  match.arg(SE_coef, several.ok = FALSE)
   
   # Extract the information from the indicated tissues and contrast
   Data0 = sapply(Studies,
@@ -72,50 +71,37 @@ RX_MetaAnalysis_prep <- function(Studies, # Studies accesion to include
                  simplify = FALSE)
   
   Data = unlist(unlist(Data0, recursive = FALSE), recursive = FALSE)
-  #names(Data) = Studies
+  names(Data) = Studies
   Data = Filter(Negate(is.null), Data)
   
   #------------- 1. Preparing input for meta-analysis
-  DataSE = sapply(names(Data), function(x) RX_getSE(Data[[x]]), simplify = FALSE) 
-  IDs = unlist(sapply(DataSE, function(x) rownames(x), simplify = TRUE), use.names = FALSE)
-  cat(glue("\n{length(unique(IDs))} of the {length(IDs)} genes have have been taken.\n")) 
-  IDs = unique(IDs)
   # Get SE
   DataSE = sapply(names(Data), function(x) RX_getSE(Data[[x]]), simplify = FALSE) 
+  # Get Gene and annotation
+  IDs = unlist(sapply(DataSE, function(x) rownames(x), simplify = TRUE), use.names = FALSE)
+  SYMBOL = sapply(Data, function(x) x$TopTab[,c("ENTREZID", "ENSEMBL", "SYMBOL")], simplify = FALSE)
+  ANOT = do.call("rbind", SYMBOL)
+  cat(glue("\n{length(unique(IDs))} of the {length(IDs)} genes have been taken."), "\n") 
+  IDs = unique(IDs)
+  ANOT = ANOT[match(unique(IDs), ANOT$ENTREZID),]
+  rownames(ANOT) = ANOT$ENTREZID
+  
   # LogFC matrix
   MatLogFC <- sapply(DataSE, function(x) x[IDs, "logFC"]) 
   rownames(MatLogFC) <- IDs
+  
   # SD matrix
   MatSE <- sapply(DataSE, function(x) x[IDs, SE_coef]) 
   rownames(MatSE) <- IDs
+  
   # Filter keeping the genes that appear in more than one study
   keep = which(rowSums(!is.na(MatSE)) > 1)
   MatLogFC = MatLogFC[keep,]
   MatSE = MatSE[keep,] 
-  #------------- 1. Meta-analysis for genes  
-  MA <- sapply(rownames(MatLogFC),
-               function(x) metafor::rma(yi = MatLogFC[x, ],
-                                        sei = MatSE[x, ],
-                                        method = method,
-                                        verbose = FALSE), simplify = FALSE, USE.NAMES = TRUE ) 
-  # Data frame including the detailed results.
-  resultMA <- as.data.frame(do.call("rbind",
-                                    sapply(MA,
-                                           function(x){c("interv_inf" = x$ci.lb, 
-                                                         "Summary_LOR" = x$b, 
-                                                         "interv_sup" = x$ci.ub,
-                                                         "pvalue" = x$pval,
-                                                         x$QE,x$QEp, x$se,
-                                                         x$tau2, x$I2, x$H2)},
-                                           simplify = FALSE)))
-  # Adjust p.values
-  resultMA$p.adjust.fdr <- stats::p.adjust(resultMA$pvalue, method = "fdr")
-  resultMA$p.adjust.BY  <- stats::p.adjust(resultMA$pvalue, method = "BY")
-  resultMA$logFDR <- -log10(resultMA$p.adjust.fdr)
-  resultMA$N <- rowSums(!is.na(MatSE))
-  # Return
-  return(resultMA)
+  
+  return(list("MatLogFC" = MatLogFC, "MatSE" = MatSE, Anot = ANOT))
 }
+
 
 
 # ~~~~~~~~~~~~ Parameters ~~~~~~~~~~~~ #

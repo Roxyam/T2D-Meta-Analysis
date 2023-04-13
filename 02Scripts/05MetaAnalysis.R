@@ -181,18 +181,25 @@ parser$add_argument("-re", "--redo",
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
 #------------- Checking arguments
-args <- parser$parse_args()
+#args <- parser$parse_args()
 
+## NONO
+#------------- Checking arguments 
+getwd()
 ### XX NONO
 args = list()
 args$studies = "ALL"
 args$tissue = "SAT"
-args$filein = "../Data/DiffExprs_Obesity.RData"
-args$outdir = "."
-args$prefix = "Meta-analysis"
-args$contrast = "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"
+args$filein = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/DifferentialExpressionObesity.RData"
+args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/Obesity/OFM_CMvsObF_CF"
+args$prefix = "Meta-analysis_4"
+#args$contrast = "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"
+args$contrast = "(Ob.M - C.M) - (Ob.F - C.F)"
 args$report = TRUE
 args$redo = FALSE
+args$plim = 0.05
+
+## NONO
 
 #load(file="../Data/DE/DifferentialExpressionObesity.RData")
 #Rscript 05MetaAnalysis.R -t SAT -f "../Data/DiffExprsObesity.RData" -o ../Data/Meta-analysis_Obesity_all.RData -c "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"
@@ -210,7 +217,7 @@ if (args$studies != "ALL"){
   Studies = names(Datas)
 }
 
-# Cheek
+# Check
 if (! all(Studies %in% names(Datas))){
   cat("The indicated file does not contain information on",
       "the following studies. \n")
@@ -224,24 +231,16 @@ Tissue = stringr::str_split_1(args$tissue, pattern = ",")
 Tissue = trimws(Tissue, whitespace = "[ \t\r\n\\.]")
 
 # Get the contrasts
-Contrast = stringr::str_split_1(args$contrast, pattern = ",")
-Contrast = trimws(Contrast, whitespace = "[ \t\r\n\\.]")
+Contrasts = stringr::str_split_1(args$contrast, pattern = ",")
+Contrasts = trimws(Contrasts, whitespace = "[ \t\r\n\\.]")
 
-#------------- 1. Meta-analysis for genes
-cat("\n---------------------------------------------\n")
-cat("Analyzing...\n")
+method = "DL"
 
-resultMAs = mclapply(Contrast, 
-                     function(C) RX_MetaAnalysis_prep(Studies = Studies,
-                                                      Tissue = Tissue,
-                                                      Datas = Datas, 
-                                                      Contrast = C,
-                                                      SE_coef = args$method))
-names(resultMAs) = Contrast
+PlotsDir = glue("{args$outdir}/Plots")
 
-# Save
-resultMAs = list()
-save(resultMAs, file = glue("{args$outdir}/{args$prefix}.RData")) 
-
-cat("\n---------------------------------------------\n")
-
+# Output directory
+if(! file.exists(args$outdir)){
+  system(glue("mkdir {args$outdir}"))
+}
+# Plots directory
+system(glue("mkdir PlotsDir"))

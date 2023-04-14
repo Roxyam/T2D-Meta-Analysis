@@ -482,7 +482,7 @@ genes significativos tomando un p valor ajustado por BH < ', args$plim, '.  \n',
     sep ="",
     file = report_out,
     append = TRUE)
-}
+
 
 cat(
   # Open chunk
@@ -502,3 +502,4 @@ cat(
 
 # Create HTML
 rmarkdown::render(report_out)
+}

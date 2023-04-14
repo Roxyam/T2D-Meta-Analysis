@@ -178,8 +178,38 @@ parser$add_argument("-r", "--report",
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
 #------------- Prepare arguments
-args <- parser$parse_args()
+#args <- parser$parse_args()
+
+## xx NONO
+
+args = list()
+args$report = TRUE
+args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data"
+args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data/"
+args$vars = c("Group","Obesity", "Diabetes")
+
+args$studies = c("E_MEXP_1425",
+                 "GSE2508",
+                 "GSE20950", 
+                 "GSE29718", 
+                 "GSE64567",
+                 "GSE78721",
+                 "GSE92405",
+                 "GSE141432",
+                 "GSE205668")
 report_out = glue("{args$outdir}/DifferentialExpressionReport.rmd")
+
+## NONO
+
+report_out = glue("{args$outdir}/DifferentialExpressionReport.rmd")
+PlotsDir = glue("{args$outdir}/Plots")
+
+# Output directory
+if(! file.exists(args$outdir)){
+  system(glue("mkdir {args$outdir}"))
+}
+# Plots directory
+system(glue("mkdir {PlotsDir}"))
 
 #------------- Differential expression
 cat("\n\t> Differential expression\n")
@@ -205,9 +235,12 @@ for (var in args$vars){
       
       Res = sapply(names(Res), 
                    function(i) sapply(names(Res[[i]]),
-                                      function(j){ cbind(Res[[i]][[j]]$"TopTab",
+                                      function(j){ # Top table
+                                        cbind(Res[[i]][[j]]$"TopTab",
                                                          anotData[match(rownames(Res[[i]][[j]]$"TopTab"),
                                                                         anotData$ENTREZID),])
+                                        # Volcano plot
+                                        Res[[i]][[j]]$"Plot" = RX_VolcanoPlot(Res[[i]][[j]]$"TopTab", logFC_lim = 0)
                                         return(Res[[i]][[j]])},
                                       simplify = FALSE),
                    simplify = FALSE)  
@@ -220,6 +253,7 @@ for (var in args$vars){
   names(Results) = Studies_out
   save(Results, file = glue("{DirDEData}/DifferentialExpression{var}.RData")) 
 }
+
 
 #------------- Report
 cat("\n\t> Report\n")
@@ -272,6 +306,7 @@ link-citations: TRUE
     'library(pacman)
 pacman::p_load(glue)
 pacman::p_load(DT)
+pacman::p_load(ggpubr)
 # Functions
 source("../Functions/Functions.R")',
     # Close chunk
@@ -301,7 +336,14 @@ source("../Functions/Functions.R")',
                                                            function(x) x$TopTab, 
                                                            simplify = FALSE),
                                       simplify = FALSE),
-                 simplify = FALSE) ',  
+                 simplify = FALSE) ', 
+      '\nPlots = sapply(names(Res), 
+                 function(est) sapply(names(Res[[est]]), 
+                                      function(tis) sapply(Res[[est]][[tis]], 
+                                                           function(x) x$Plot, 
+                                                           simplify = FALSE),
+                                      simplify = FALSE),
+                 simplify = FALSE) ', 
       # Close chunk
       '\n```  \n\n','\n&nbsp;  \n\n',
       sep ="",
@@ -313,8 +355,9 @@ source("../Functions/Functions.R")',
     for (tis in Tissues){
       cat(
         # Title
-        '\n#### ',tis,'  \n',
+        '\n#### ',tis,'  {.tabset .tabset-fade -}  \n',
         '\n&nbsp;  \n',
+        '\n##### Tabla  {-}  \n\n',
         # Open chunk
         '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}\n\n',
         'Toptabs_tis = sapply(Toptabs, 
@@ -347,19 +390,54 @@ datatable(DT_tis0, caption = "Resultados expresión diferencial ', tis,'")
 # Conjunto 
 cols= St
 DT_tis = sapply(cols, function(col) sapply(rows, function(row) RX_ifelse(is.null(Resume_tis[[col]][[row]]), "-", Resume_tis[[col]][[row]]), USE.NAMES = T), USE.NAMES = T)
-DT_tis = datatable(DT_tis, caption = "Resultados expresión diferencial ', tis,'")', 
+DT_tis = datatable(DT_tis, caption = "Resultados expresión diferencial ', tis,'",
+options = list(scrollX = TRUE))', 
         # Close chunk
         '\n```  \n\n','\n&nbsp;  \n\n',
         '\n***  \n',
         sep ="",
         file = report_out,
         append = TRUE)
+      
+      # Volcano plot
+      cat(
+        '\n##### Plots  {.tabset .tabset-fade -}  \n\n',
+        sep ="",
+        file = report_out,
+        append = TRUE)
+      # Recorremos los contrastes
+      for (C in names(Results[[1]][[1]])){
+        cat(
+          '\n###### ', C ,'  {-}  \n\n',
+          # Open chunk
+          '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.height=12, fig.width=12, fig.align="center"}\n\n',
+          'Plots_tis = sapply(Plots, 
+                   function(x) x[["', tis,'"]][["', C,'"]],
+                   simplify = FALSE, USE.NAMES = TRUE)\n',
+          'Plots_cont = Plots_tis[which(sapply(Plots_tis, function(x) ! is.null(x)))]\n',
+          'ggarrange(plotlist = Plots_cont,
+          labels= names(Plots_cont),
+          common.legend = TRUE,
+          #ncol = 2,
+          align = "hv",
+          hjust = -0.2,
+          vjust = 1,
+          font.label = list(size=6),
+          widths = c(1, 1),
+          legend = "bottom")\n',
+          # Close chunk
+          '\n```  \n\n','\n&nbsp;  \n\n',
+          '\n***  \n',
+          sep ="",
+          file = report_out,
+          append = TRUE)
+        
+      }
     }
   }
-}
-
 # Create HTML
 rmarkdown::render(report_out)
+}
 
 cat("\nDone\n")
 cat("\n---------------------------------------------\n")

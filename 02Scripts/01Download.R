@@ -112,7 +112,7 @@ if(!is.null(args$b)){
   # BioStudies/ArrayExpress studies to download
   Arrstudies = stringr::str_split_1(args$b, pattern = ",")
   # Use RX function to download all stidies
-  out = lapply(Arrstudies, function(e) RX_GetDataGEO(e, DirData))
+  out = lapply(Arrstudies, function(e) RX_GetDataArrEx(e, DirData))
   cat("\n---------------------------------------------\n")
 }
 

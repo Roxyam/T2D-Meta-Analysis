@@ -401,3 +401,68 @@ RX_resumeBarPlot <- function(Data, # ExpressionSet or SummarizedExperiment
   
   return(BarPlot)
 }
+
+# Differential expression
+RX_VolcanoPlot <- function(DF,
+                           logFC_lim = 1, # Limit for logFC
+                           padj_lim = 0.05, # Limit for the fitted p value
+                           FDRtransform = log10,
+                           colors = c("Significativo up-regulated" = "#CB326D",
+                                      "Significativo down-regulated" = "#00AFBB",
+                                      "Significativo" = "gray24",
+                                      "No significativo" = "grey"),
+                           pval_col = "adj.P.Val", # Adj p val column
+                           logFC_col = "logFC",
+                           point_size = 1,
+                           point_shape = 8,
+                           label = "ENTREZID",
+                           legendTitle = "Significance",
+                           ylab = "logFDR",
+                           xlab = "logFC"){
+  # library(ggrepel)
+  # library(ggplot2)
+  # Check for significant
+  DF$Sig =  factor(sapply(seq(nrow(DF)), 
+                          function(i) ifelse(DF[i,pval_col]>padj_lim, "No significativo",
+                                             ifelse(DF[i,logFC_col] < -logFC_lim, "Significativo down-regulated",
+                                                    ifelse(DF[i,logFC_col] > logFC_lim, "Significativo up-regulated", "Significativo" )))
+  ))
+  
+  # Prepare plot data
+  DF_plot <- DF
+  DF_plot$logFDR <- -FDRtransform(DF[,pval_col])
+  
+  VolcanoPlot <- ggplot(data = DF_plot, aes(x = DF[,logFC_col], y = logFDR)) + 
+    # Horizontal bar
+    geom_vline(xintercept = c(-logFC_lim, logFC_lim), col = "gray", linetype = 'dashed') +
+    # Vertical bar
+    geom_hline(yintercept = -FDRtransform(padj_lim), col = "gray", linetype = 'dashed') + 
+    # Points
+    geom_point(size = 1, aes(col = Sig), shape=point_shape) + 
+    # Fix xlim position
+    coord_cartesian(#ylim = c(0, 3),  xlim = c(-1, 1)
+      xlim = c(-max(abs(DF[,logFC_col])), max(abs(DF[,logFC_col])))) + 
+    # Colors
+    scale_color_manual(values = colors)
+  
+  # Add labels to points
+  if(! is.null(label)){
+    VolcanoPlot <- VolcanoPlot + 
+      # Asign names
+      geom_text_repel(aes(DF[,logFC_col], logFDR),
+                      label = ifelse(DF$Sig %in% c("Significativo down-regulated", "Significativo up-regulated"), 
+                                     as.character(DF$SYMBOL),"")) }
+  # Theme
+  VolcanoPlot <- VolcanoPlot + 
+    theme(plot.background = element_rect(fill="transparent"),
+          panel.background = element_rect(fill = "transparent"),
+          axis.line = element_line(colour = "black") ) +
+    guides(color =guide_legend(title = legendTitle)) 
+  
+  # Labels
+  VolcanoPlot <- VolcanoPlot + 
+    ylab(ylab) +
+    xlab(xlab) 
+  
+  return(VolcanoPlot)
+}

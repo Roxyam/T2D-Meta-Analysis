@@ -34,6 +34,8 @@ pacman::p_load(argparse)
 pacman::p_load(Biobase)
 pacman::p_load(DT)
 pacman::p_load(glue)
+pacman::p_load(ggplot2)
+pacman::p_load(ggrepel)
 pacman::p_load(limma)
 pacman::p_load(stringr)
 pacman::p_load(SummarizedExperiment) 
@@ -184,8 +186,8 @@ parser$add_argument("-r", "--report",
 
 args = list()
 args$report = TRUE
-args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data"
-args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data/"
+args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE"
+args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data"
 args$vars = c("Group","Obesity", "Diabetes")
 
 args$studies = c("E_MEXP_1425",
@@ -221,8 +223,7 @@ for (var in args$vars){
     Acc = study
     DirRData = glue("{args$indir}/{Acc}/02RData")
     DirDEData = glue("{args$outdir}")
-    load(glue("{DirRData}/finalData.RData"))
-    Data = finalData
+    Data = get(load(glue("{DirRData}/finalData.RData"))[[1]])
     try({      
       # Compute the differential expression
       Res <- RX_DiffExpFinal(Data, var1 = var, var2="Gender")
@@ -236,7 +237,7 @@ for (var in args$vars){
       Res = sapply(names(Res), 
                    function(i) sapply(names(Res[[i]]),
                                       function(j){ # Top table
-                                        cbind(Res[[i]][[j]]$"TopTab",
+                                        Res[[i]][[j]]$"TopTab" = cbind(Res[[i]][[j]]$"TopTab",
                                                          anotData[match(rownames(Res[[i]][[j]]$"TopTab"),
                                                                         anotData$ENTREZID),])
                                         # Volcano plot
@@ -244,6 +245,7 @@ for (var in args$vars){
                                         return(Res[[i]][[j]])},
                                       simplify = FALSE),
                    simplify = FALSE)  
+      
       # Save the information in a R data file
       Results = c(Results, list(Res))
       Studies_out = c(Studies_out, study)
@@ -308,7 +310,7 @@ pacman::p_load(glue)
 pacman::p_load(DT)
 pacman::p_load(ggpubr)
 # Functions
-source("../Functions/Functions.R")',
+source("C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Functions/Functions.R")',
     # Close chunk
     '\n```  \n\n','\n&nbsp;  \n\n',
     sep ="",
@@ -410,21 +412,23 @@ options = list(scrollX = TRUE))',
         cat(
           '\n###### ', C ,'  {-}  \n\n',
           # Open chunk
-          '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.height=12, fig.width=12, fig.align="center"}\n\n',
+          '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.align="center"}\n\n',
           'Plots_tis = sapply(Plots, 
                    function(x) x[["', tis,'"]][["', C,'"]],
                    simplify = FALSE, USE.NAMES = TRUE)\n',
           'Plots_cont = Plots_tis[which(sapply(Plots_tis, function(x) ! is.null(x)))]\n',
-          'ggarrange(plotlist = Plots_cont,
-          labels= names(Plots_cont),
-          common.legend = TRUE,
-          #ncol = 2,
-          align = "hv",
-          hjust = -0.2,
-          vjust = 1,
-          font.label = list(size=6),
-          widths = c(1, 1),
-          legend = "bottom")\n',
+          'if (length(Plots_cont) >0){
+            ggarrange(plotlist = Plots_cont,
+            labels= names(Plots_cont),
+            common.legend = TRUE,
+            ncol = 2,
+            align = "hv",
+            hjust = -0.2,
+            vjust = 1,
+            font.label = list(size=6),
+            widths = c(1, 1),
+            legend = "bottom")\n
+          }',
           # Close chunk
           '\n```  \n\n','\n&nbsp;  \n\n',
           '\n***  \n',

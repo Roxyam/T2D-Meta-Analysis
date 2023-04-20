@@ -190,16 +190,17 @@ parser$add_argument("-re", "--redo",
 args = list()
 args$studies = "ALL"
 args$tissue = "SAT"
-args$filein = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/DifferentialExpressionDiabetes.RData"
-args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/Diabetes/IRM_ISMvsIRF_ISF"
-args$id = "Meta-analysis_4"
-args$prefix = "Meta-analysis_4"
+args$filein = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE/DifferentialExpressionDiabetes.RData"
+args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/Diabetes2/IRvsIS"
+args$id = "Meta-analysis_1"
+args$prefix = "Meta-analysis_1"
 #args$contrast = "Ob - C, Ob.M - C.M, Ob.F - C.F, (Ob.M - C.M) - (Ob.F - C.F)"
-args$contrast = "(IR.M - IS.M) - (IR.F - IS.F)"
+args$contrast = "IR - IS"
 args$report = TRUE
 args$redo = FALSE
 args$plim = 0.05
 args$pmax = 50
+
 
 ## NONO
 
@@ -281,7 +282,8 @@ if(file.exists(MA_in) & isFALSE(args$redo)){
                                         sei = Mats$MatSE[x, ],
                                         method = method,
                                         slab = Studies,
-                                        verbose = FALSE), simplify = FALSE, USE.NAMES = TRUE ) 
+                                        verbose = FALSE),
+               simplify = FALSE,USE.NAMES = TRUE ) 
   save(MA, file = MA_out)
 }
 
@@ -310,7 +312,7 @@ if(file.exists(DF_in) & isFALSE(args$redo)){
 
 sigData = resultMA[resultMA[, "p.adjust.fdr"] < args$plim,]
 sigData = sigData[order(abs(sigData[, "p.adjust.fdr"])),]
-if (nrow(sigData > args$pmax )){
+if (nrow(sigData) > args$pmax ){
   sigData = sigData[c(1:args$pmax),]
 }
 
@@ -331,7 +333,7 @@ color = "#2494b5"
     #Funnel plot
     svg(glue("{PlotsDir}/{args$prefix}_{gene}funnel.svg"))
     funnel(res, main=paste("\n", Mats$Anot[gene, "SYMBOL"] , " (", gene, ")",sep=""), back ="transparent", ylab = "Error estándar",
-           xlab = "logFC", label = "out", shade=c("#F0EFEF", "#90C432", "#2494b5"), refline=0,
+           xlab = "logFC", label = 2, shade=c("#F0EFEF", "#90C432", "#2494b5"), refline=0,
            level=c(90, 95, 99), legend=TRUE, atransf=exp)
     dev.off()  
     

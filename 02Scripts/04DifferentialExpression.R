@@ -46,12 +46,12 @@ pacman::p_load(SummarizedExperiment)
 source("Functions/Functions.R")
 RX_contrast <- function(expmatrix, design, C){
   # library(limma)
-  set.seed(2808) 
+  set.seed(1808) 
   contMatrix <- makeContrasts(contrasts = C, levels = design)
   fit <- lmFit(expmatrix, design)
   fit2 <- contrasts.fit(fit, contMatrix)
   Res <- eBayes(fit2)
-  Res$TopTab <- topTable(Res, number = Inf, adjust.method = "BH") #, sort.by = "logFC"
+  Res$TopTab <- topTable(Res, number = Inf, adjust.method = "BH", sort.by = "none") #, sort.by = "logFC"
   
   return(Res)
 }
@@ -59,7 +59,7 @@ RX_contrast <- function(expmatrix, design, C){
 RX_DiffExp <- function(phenoData, expressData , C, var="Group", studyType = "Array"){
   #library(Biobase)
   #library(stringr)
-  set.seed(2808)
+  set.seed(1808)
   if(length(var) == 2){
     contrast = interaction(phenoData[,var[1]], phenoData[,var[2]])
   }else{
@@ -84,7 +84,7 @@ RX_DiffExpFinal <- function(Data, var1="Group", var2="Gender"){
   # library(SummarizedExperiment)
   # library(Biobase)
   # library(glue) 
-  set.seed(2808) 
+  set.seed(1808) 
   if(class(Data) == "ExpressionSet"){
     phenoData = pData(Data)
     expressData = exprs(Data)
@@ -186,7 +186,7 @@ parser$add_argument("-r", "--report",
 
 args = list()
 args$report = TRUE
-args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE"
+args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE2"
 args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data"
 args$vars = c("Group","Obesity", "Diabetes")
 

@@ -56,7 +56,8 @@ RX_contrast <- function(expmatrix, design, C){
   return(Res)
 }
 
-RX_DiffExp <- function(phenoData, expressData , C, var="Group", studyType = "Array"){
+RX_DiffExp <- function(phenoData, expressData , C, var="Group",
+                       studyType = "Array", covar = NULL){
   #library(Biobase)
   #library(stringr)
   set.seed(1808)
@@ -66,8 +67,16 @@ RX_DiffExp <- function(phenoData, expressData , C, var="Group", studyType = "Arr
     contrast = phenoData[,var]
   }
   
-  design = model.matrix(~0+contrast)
-  colnames(design) <- str_replace(levels(contrast) , "-", "_")
+  if(is.null(covar) | ! is.factor(phenoData[, covar])){
+    design = model.matrix(~0 + contrast)
+    colnames(design) <- str_replace(levels(contrast) , "-", "_")
+  }else{
+    
+    design = model.matrix(~0 + contrast + phenoData[, covar])
+    colnames(design) <- c(str_replace(levels(contrast) , "-", "_"),
+                          levels(phenoData[, covar])[-2])
+  }
+  
   
   # Si es RNA-seq usamos voom
   if (studyType == "RNA-seq"){
@@ -80,7 +89,7 @@ RX_DiffExp <- function(phenoData, expressData , C, var="Group", studyType = "Arr
 }
 
 # Global
-RX_DiffExpFinal <- function(Data, var1="Group", var2="Gender"){
+RX_DiffExpFinal <- function(Data, var1="Group", var2="Gender", ...){
   # library(SummarizedExperiment)
   # library(Biobase)
   # library(glue) 
@@ -123,8 +132,8 @@ RX_DiffExpFinal <- function(Data, var1="Group", var2="Gender"){
   C3 = c(unlist(C2), C3, use.names = FALSE)
   
   
-  Tt = sapply(Tissue, function(x) c(RX_DiffExp(phenoDatas[[x]], expressDatas[[x]] , C1, var=var1, studyType = studyType),
-                                    RX_DiffExp(phenoDatas[[x]], expressDatas[[x]], C3, var=c(var1, var2), studyType = studyType)),
+  Tt = sapply(Tissue, function(x) c(RX_DiffExp(phenoDatas[[x]], expressDatas[[x]] , C1, var=var1, studyType = studyType, ...),
+                                    RX_DiffExp(phenoDatas[[x]], expressDatas[[x]], C3, var=c(var1, var2), studyType = studyType, ...)),
               simplify = FALSE, USE.NAMES = TRUE) 
   
   return(Tt)
@@ -151,6 +160,13 @@ parser$add_argument("-v", "--vars",
                     default="Group",
                     choices = c("Group","Obesity", "Diabetes"), 
                     help="Variable or variables to use in the
+                          differential expression.")
+# Covariables
+parser$add_argument("-c", "--covars",
+                    action="store",
+                    type="character",
+                    default=NULL,
+                    help="Coariable or covariables to use in the
                           differential expression.")
 
 # Data directory
@@ -189,6 +205,8 @@ args$report = TRUE
 args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE2"
 args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data"
 args$vars = c("Group","Obesity", "Diabetes")
+#args$covars = "Batch"
+args$covars = NULL
 
 args$studies = c("E_MEXP_1425",
                  "GSE2508",

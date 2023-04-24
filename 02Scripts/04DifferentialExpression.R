@@ -241,7 +241,7 @@ for (var in args$vars){
     Acc = study
     DirRData = glue("{args$indir}/{Acc}/02RData")
     DirDEData = glue("{args$outdir}")
-    Data = get(load(glue("{DirRData}/finalData.RData"))[[1]])
+    Data = get(load(glue("{DirRData}/normData_anot.RData"))[[1]])
     try({      
       # Compute the differential expression
       Res <- RX_DiffExpFinal(Data, var1 = var, var2="Gender")
@@ -327,9 +327,98 @@ link-citations: TRUE
 pacman::p_load(glue)
 pacman::p_load(DT)
 pacman::p_load(ggpubr)
+pacman::p_load(flextable)
+pacman::p_load(officer)
+pacman::p_load(dplyr)
+
 # Functions
 source("C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Functions/Functions.R")',
     # Close chunk
+    '\n```  \n\n','\n&nbsp;  \n\n',
+    sep ="",
+    file = report_out,
+    append = TRUE)
+  
+  cat('\n## Análisis de expresión diferencial {.tabset .tabset-fade -}  \n',
+      '&nbsp;  \n\n',
+      sep ="",
+      file = report_out,
+      append = TRUE)
+  # Load packages
+  cat(
+    # Open chunk
+    '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}\n',
+    '# Output table
+RX_table <- function(Data,
+                     Color1 = "#007FA6",
+                     Color2 = "#007FA6" ,
+                     Color.l = "black" ,
+                     Color.l2 = "#878787",
+                     Color.up = "#CB326D",
+                     Color.down = "#00AFBB",
+                       font = "Calibri"){
+    
+  cols=colnames(Data[,-c(1,2)]) # Columns with info
+  col_keys = colnames(Data) # Nombres unicos de las columnas
+  # Header
+  header = data.frame(col_keys = col_keys,
+                      H1 = c("Contraste", "Contraste", rep("Estudios", length(cols))),
+                      H2 = c("Contraste", "Contraste", cols)
+                      )
+  
+  ## Flextable
+  # Set info
+  ft <- flextable(Data, col_keys = colnames(Data))
+  # Set header
+  ft <- set_header_df(ft, mapping = header, key = "col_keys" )
+  # Format number
+  ft <- colformat_num(ft, big.mark = ".", decimal.mark = "," )
+  
+  # Merge headers
+  ft <- merge_h(ft, part = "header") %>% 
+    merge_v( part = "header")
+  
+  # Merge contrastes
+  ft <- merge_v(ft, j = c(1,2), part = "body")
+  
+  # Horizontal lines
+  ft <- hline(ft, i=seq(from=3, to=nrow(Data), by=3),
+              border = fp_border(width = 1, color = Color.l2), part="body")
+  ft <- hline(ft,border = fp_border(width = 2, color = Color1), part = "header")
+  
+  # Outer bottom
+  ft <- hline_bottom(ft, border = fp_border(width = 2, color = Color1))
+  
+  # Alineamiento
+  ft <- flextable::align(ft, align = "center", part = "header")
+  
+  # Header design
+  ft <- fontsize(ft, i = 1:2, size = 12, part = "header") %>%
+    color(i=1, color = Color2, part = "header") %>%
+    color(i=2, color = Color.l2, part = "header") %>%
+    bold(i=1, bold = TRUE, part = "header")
+  # Rotate names
+  #ft <- rotate(ft, i = 2, rotation = "btlr", part = "header", align = "bottom")
+  
+  # Font
+  font(ft, fontname = font, part = "all")
+  
+  # Matriz de colores
+  colormatrix <- ifelse(Data[, cols] == 0, Color.l2, Color.l )
+  # Color
+  ft <- color(ft, j=cols, color = colormatrix, part = "body") 
+  # Color
+  x = Data[, 2]
+  colors = case_when(
+    x == "Up" ~ Color.up,
+    x == "Down" ~ Color.down,
+    TRUE ~ Color.l
+  )
+  ft <- color(ft, j=2, color = colors, part = "body") %>%
+    bold(j=2, bold = TRUE, part = "body")
+  return(ft)
+    
+}',
     '\n```  \n\n','\n&nbsp;  \n\n',
     sep ="",
     file = report_out,
@@ -373,6 +462,8 @@ source("C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D
     # Take all tissues
     Tissues = unique(unlist(sapply(Results, function(x) names(x)), use.names = FALSE))
     for (tis in Tissues){
+      # Number of tissues
+      nSt = sum(sapply(Results, function(x)  ! is.null(x[[tis]])))
       cat(
         # Title
         '\n#### ',tis,'  {.tabset .tabset-fade -}  \n',
@@ -395,23 +486,28 @@ Toptabs_tis_sig = sapply(Toptabs_tis,
            simplify = FALSE, USE.NAMES = TRUE) 
 
 Resume_tis = sapply(Toptabs_tis_sig, 
-           function(x) sapply(x, 
-                              function(x1) nrow(x1),
+                    function(x) sapply(x, 
+                              function(x1){ up = length(which(x1$logFC > 0))
+                                            down = length(which(x1$logFC < 0))
+                                            return(c(up,down, sum(up,down)))},
                               simplify = FALSE, USE.NAMES = TRUE),
            simplify = FALSE, USE.NAMES = TRUE)
 
 rows = unlist(sapply(Resume_tis, function(x) names(x), USE.NAMES = TRUE, simplify = FALSE))
 rows = unique(rows)
-# Por separado
+# Sep
 cols = names(Resume_tis)
-DT_tis0 = sapply(cols, function(col) sapply(rows, function(row) RX_ifelse(is.null(Resume_tis[[col]][[row]]), "-", Resume_tis[[col]][[row]]), USE.NAMES = T), USE.NAMES = T)
-datatable(DT_tis0, caption = "Resultados expresión diferencial ', tis,'")
 
-# Conjunto 
-cols= St
-DT_tis = sapply(cols, function(col) sapply(rows, function(row) RX_ifelse(is.null(Resume_tis[[col]][[row]]), "-", Resume_tis[[col]][[row]]), USE.NAMES = T), USE.NAMES = T)
-DT_tis = datatable(DT_tis, caption = "Resultados expresión diferencial ', tis,'",
-options = list(scrollX = TRUE))', 
+DT_tis0 = sapply(cols,
+                 function(col) sapply(rows,
+                                      function(row) RX_ifelse(is.null(Resume_tis[[col]][[row]]), rep("-", 3), Resume_tis[[col]][[row]]),
+                                      USE.NAMES = T),
+                 USE.NAMES = T)
+DT_tis = data.frame("Contrast" = rep(rows, each = 3),
+                    "Direction" = rep(c("Up", "Down", "Total"), times = length(rows)),
+                    DT_tis0)
+#datatable(DT_tis0, caption = "Resultados expresión diferencial ', tis,'")
+RX_table(DT_tis) # OUT', 
         # Close chunk
         '\n```  \n\n','\n&nbsp;  \n\n',
         '\n***  \n',
@@ -430,23 +526,24 @@ options = list(scrollX = TRUE))',
         cat(
           '\n###### ', C ,'  {-}  \n\n',
           # Open chunk
-          '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.align="center"}\n\n',
+          '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=', (ceiling(nSt/2)*6),', fig.align="center"}\n\n',
           'Plots_tis = sapply(Plots, 
                    function(x) x[["', tis,'"]][["', C,'"]],
                    simplify = FALSE, USE.NAMES = TRUE)\n',
           'Plots_cont = Plots_tis[which(sapply(Plots_tis, function(x) ! is.null(x)))]\n',
           'if (length(Plots_cont) >0){
-            ggarrange(plotlist = Plots_cont,
-            labels= names(Plots_cont),
-            common.legend = TRUE,
-            ncol = 2,
-            align = "hv",
-            hjust = -0.2,
-            vjust = 1,
-            font.label = list(size=6),
-            widths = c(1, 1),
-            legend = "bottom")\n
-          }',
+ ggarrange(plotlist = Plots_cont,
+ labels= names(Plots_cont),
+ common.legend = TRUE,
+ ncol = 2,
+ nrow = ',(ceiling(nSt/2)*6),',
+ align = "hv",
+ hjust = -0.2,
+ vjust = 1,
+ font.label = list(size=6),
+ widths = c(1, 1),
+ legend = "bottom")\n
+ }',
           # Close chunk
           '\n```  \n\n','\n&nbsp;  \n\n',
           '\n***  \n',
@@ -458,7 +555,7 @@ options = list(scrollX = TRUE))',
     }
   }
 # Create HTML
-rmarkdown::render(report_out)
+#rmarkdown::render(report_out)
 }
 
 cat("\nDone\n")

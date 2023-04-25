@@ -46,7 +46,7 @@ pacman::p_load(SummarizedExperiment)
 source("Functions/Functions.R")
 RX_contrast <- function(expmatrix, design, C){
   # library(limma)
-  set.seed(2808) 
+  set.seed(1808) 
   contMatrix <- makeContrasts(contrasts = C, levels = design)
   fit <- lmFit(expmatrix, design)
   fit2 <- contrasts.fit(fit, contMatrix)
@@ -71,10 +71,10 @@ RX_DiffExp <- function(phenoData, expressData , C, var="Group",
     design = model.matrix(~0 + contrast)
     colnames(design) <- str_replace(levels(contrast) , "-", "_")
   }else{
-    
-    design = model.matrix(~0 + contrast + phenoData[, covar])
+    cov = factor(make.names(phenoData[, covar]))
+    design = model.matrix(~ 0 + contrast + cov)
     colnames(design) <- c(str_replace(levels(contrast) , "-", "_"),
-                          levels(phenoData[, covar])[-2])
+                          levels(cov)[-2])
   }
   
   
@@ -210,7 +210,7 @@ parser$add_argument("-p", "--plot",
 
 args = list()
 args$report = TRUE
-args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE4"
+args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE7"
 args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data"
 #args$vars = c("Group","Obesity", "Diabetes")
 args$vars = c("Obesity")#, "Diabetes")
@@ -227,7 +227,6 @@ args$studies = c("E_MEXP_1425",
                  "GSE92405",
                  "GSE141432",
                  "GSE205668")
-args$studies = c("E_MEXP_1425")
 args$plot = FALSE
 report_out = glue("{args$outdir}/DifferentialExpressionReport.rmd")
 
@@ -257,9 +256,10 @@ for (var in args$vars){
   Studies_out = c()
   for (study in args$studies){
     Acc = study
+    cat(Acc, "\n")
     DirRData = glue("{args$indir}/{Acc}/02RData")
     DirDEData = glue("{args$outdir}")
-    Data = get(load(glue("{DirRData}/normData_anot.RData"))[[1]])
+    Data = get(load(glue("{DirRData}/finalData.RData"))[[1]])
     try({      
       # Compute the differential expression
       Res <- RX_DiffExpFinal(Data, var1 = var, var2="Gender", covar = args$covars)

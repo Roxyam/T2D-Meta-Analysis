@@ -46,7 +46,7 @@ pacman::p_load(SummarizedExperiment)
 source("Functions/Functions.R")
 RX_contrast <- function(expmatrix, design, C){
   # library(limma)
-  set.seed(1808) 
+  set.seed(2808) 
   contMatrix <- makeContrasts(contrasts = C, levels = design)
   fit <- lmFit(expmatrix, design)
   fit2 <- contrasts.fit(fit, contMatrix)
@@ -192,6 +192,14 @@ parser$add_argument("-r", "--report",
                     dafault=TRUE,
                     help="Create an R Markdown and HTML with the results.")
 
+# Plots
+parser$add_argument("-p", "--plot",
+                    action="store_true",
+                    type="character",
+                    dafault=FALSE,
+                    help="Add plots to report")
+
+
 
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
@@ -202,11 +210,13 @@ parser$add_argument("-r", "--report",
 
 args = list()
 args$report = TRUE
-args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE2"
+args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE4"
 args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data"
-args$vars = c("Group","Obesity", "Diabetes")
-#args$covars = "Batch"
+#args$vars = c("Group","Obesity", "Diabetes")
+args$vars = c("Obesity")#, "Diabetes")
+
 args$covars = NULL
+#args$covars = "Batch"
 
 args$studies = c("E_MEXP_1425",
                  "GSE2508",
@@ -217,19 +227,27 @@ args$studies = c("E_MEXP_1425",
                  "GSE92405",
                  "GSE141432",
                  "GSE205668")
+args$studies = c("E_MEXP_1425")
+args$plot = FALSE
 report_out = glue("{args$outdir}/DifferentialExpressionReport.rmd")
 
 ## NONO
 
 report_out = glue("{args$outdir}/DifferentialExpressionReport.rmd")
-PlotsDir = glue("{args$outdir}/Plots")
 
 # Output directory
 if(! file.exists(args$outdir)){
   system(glue("mkdir {args$outdir}"))
 }
-# Plots directory
-system(glue("mkdir {PlotsDir}"))
+
+if(args$plot){
+  PlotsDir = glue("{args$outdir}/Plots")
+  if(! file.exists(PlotsDir)){
+    # Plots directory
+    system(glue("mkdir {PlotsDir}"))
+  }
+}
+
 
 #------------- Differential expression
 cat("\n\t> Differential expression\n")
@@ -244,7 +262,7 @@ for (var in args$vars){
     Data = get(load(glue("{DirRData}/normData_anot.RData"))[[1]])
     try({      
       # Compute the differential expression
-      Res <- RX_DiffExpFinal(Data, var1 = var, var2="Gender")
+      Res <- RX_DiffExpFinal(Data, var1 = var, var2="Gender", covar = args$covars)
       # Add the annotation
       if(class(Data) == "ExpressionSet"){
         anotData = fData(Data)  
@@ -358,7 +376,7 @@ RX_table <- function(Data,
                      Color.down = "#00AFBB",
                        font = "Calibri"){
     
-  cols=colnames(Data[,-c(1,2)]) # Columns with info
+  cols=colnames(Data)[-c(1,2)] # Columns with info
   col_keys = colnames(Data) # Nombres unicos de las columnas
   # Header
   header = data.frame(col_keys = col_keys,
@@ -516,13 +534,18 @@ RX_table(DT_tis) # OUT',
         append = TRUE)
       
       # Volcano plot
-      cat(
+  if(args$plot){      
+  cat(
         '\n##### Plots  {.tabset .tabset-fade -}  \n\n',
         sep ="",
         file = report_out,
         append = TRUE)
       # Recorremos los contrastes
-      for (C in names(Results[[1]][[1]])){
+      contrasts = unique(unlist(sapply(Results,
+                                       function(x) RX_ifelse(!is.null(x[[tis]]),
+                                                             names(x[[tis]]), NULL),
+                                       simplify = FALSE)))
+      for (C in contrasts){
         cat(
           '\n###### ', C ,'  {-}  \n\n',
           # Open chunk
@@ -531,12 +554,16 @@ RX_table(DT_tis) # OUT',
                    function(x) x[["', tis,'"]][["', C,'"]],
                    simplify = FALSE, USE.NAMES = TRUE)\n',
           'Plots_cont = Plots_tis[which(sapply(Plots_tis, function(x) ! is.null(x)))]\n',
+          '# Save plots\n',
+          'sapply(names(Plots_cont),
+                  function(x)save(Plots_cont[[x]],
+                                   file=glue("',PlotsDir,'/{x}', tis,',', C,'")))\n',
           'if (length(Plots_cont) >0){
  ggarrange(plotlist = Plots_cont,
  labels= names(Plots_cont),
  common.legend = TRUE,
  ncol = 2,
- nrow = ',(ceiling(nSt/2)*6),',
+ nrow = ',(ceiling(nSt/2)),',
  align = "hv",
  hjust = -0.2,
  vjust = 1,
@@ -551,11 +578,11 @@ RX_table(DT_tis) # OUT',
           file = report_out,
           append = TRUE)
         
-      }
+      }}
     }
   }
 # Create HTML
-#rmarkdown::render(report_out)
+rmarkdown::render(report_out)
 }
 
 cat("\nDone\n")

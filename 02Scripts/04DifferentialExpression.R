@@ -210,7 +210,7 @@ parser$add_argument("-p", "--plot",
 
 args = list()
 args$report = TRUE
-args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE7"
+args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE8"
 args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data"
 #args$vars = c("Group","Obesity", "Diabetes")
 args$vars = c("Obesity")#, "Diabetes")
@@ -374,7 +374,8 @@ RX_table <- function(Data,
                      Color.l2 = "#878787",
                      Color.up = "#CB326D",
                      Color.down = "#00AFBB",
-                       font = "Calibri"){
+                     footer = NULL,
+                     font = "Calibri"){
     
   cols=colnames(Data)[-c(1,2)] # Columns with info
   col_keys = colnames(Data) # Nombres unicos de las columnas
@@ -391,6 +392,13 @@ RX_table <- function(Data,
   ft <- set_header_df(ft, mapping = header, key = "col_keys" )
   # Format number
   ft <- colformat_num(ft, big.mark = ".", decimal.mark = "," )
+  # Set footer
+  if(! is.null(footer)){
+    ft <- add_footer(ft, values = footer) %>% 
+      merge_h(part = "footer")  %>% 
+      bold(j=1, part = "footer") %>%
+      hline(border = fp_border(width = 2, color = Color1), part = "footer")
+  }
   
   # Merge headers
   ft <- merge_h(ft, part = "header") %>% 
@@ -409,6 +417,9 @@ RX_table <- function(Data,
   
   # Alineamiento
   ft <- flextable::align(ft, align = "center", part = "header")
+  ft <- flextable::align(ft, align = "right", part = "footer")
+  ft <- flextable::align(ft, j=1, align = "left", part = "footer")
+  
   
   # Header design
   ft <- fontsize(ft, i = 1:2, size = 12, part = "header") %>%
@@ -525,7 +536,10 @@ DT_tis = data.frame("Contrast" = rep(rows, each = 3),
                     "Direction" = rep(c("Up", "Down", "Total"), times = length(rows)),
                     DT_tis0)
 #datatable(DT_tis0, caption = "Resultados expresión diferencial ', tis,'")
-RX_table(DT_tis) # OUT', 
+foot = sapply(names(Toptabs_tis), function(x) nrow(Toptabs_tis[[x]][[1]]))
+val = c("Nº total de genes", "Nº total de genes",foot)
+names(val)[1:2] = c("Contrast", "Direction")
+RX_table(DT_tis, footer = val) # OUT', 
         # Close chunk
         '\n```  \n\n','\n&nbsp;  \n\n',
         '\n***  \n',

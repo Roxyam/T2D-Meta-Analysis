@@ -350,7 +350,8 @@ pacman::p_load(officer)
 pacman::p_load(dplyr)
 
 # Functions
-source("C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Functions/Functions.R")',
+source("C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Functions/Functions.R")
+Dir = "',args$outdir,'" ',
     # Close chunk
     '\n```  \n\n','\n&nbsp;  \n\n',
     sep ="",
@@ -466,7 +467,7 @@ RX_table <- function(Data,
       # Open chunk
       '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}\n',
       '# Read data\n',
-      'Res = get(load("',args$outdir,'/DifferentialExpression', var,'.RData"))\n',
+      'Res = get(load(glue("{Dir}/DifferentialExpression', var,'.RData")))\n',
       'St = names(Res)\n',
       'Toptabs = sapply(names(Res), 
                  function(est) sapply(names(Res[[est]]), 
@@ -570,8 +571,11 @@ RX_table(DT_tis, footer = val) # OUT',
           'Plots_cont = Plots_tis[which(sapply(Plots_tis, function(x) ! is.null(x)))]\n',
           '# Save plots\n',
           'sapply(names(Plots_cont),
-                  function(x)save(Plots_cont[[x]],
-                                   file=glue("',PlotsDir,'/{x}', tis,',', C,'")))\n',
+                  function(x)ggsave(Plots_cont[[x]],
+                                    device = "svg",
+                                    height = 6, 
+                                    width = 10,
+                                    filename=glue("{Dir}/Plots/{x}_', tis,'_', C,'.svg")))\n',
           'if (length(Plots_cont) >0){
  ggarrange(plotlist = Plots_cont,
  labels= names(Plots_cont),

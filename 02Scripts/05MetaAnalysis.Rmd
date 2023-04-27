@@ -229,7 +229,7 @@ if(file.exists(DF_out) & isFALSE(args$redo)){
   resultMA$N <- rowSums(!is.na(Mats$MatSE))
   save(resultMA, file = DF_out)
 }
-Datas$E_MEXP_1425$SAT$`Ob - C`$TopTab
+
 
 
 ```
@@ -726,6 +726,6 @@ res
 
 
 ```{r}
-
+MA$'780'$QEp
 ```
 

@@ -407,8 +407,8 @@ RX_VolcanoPlot <- function(DF,
                            logFC_lim = 1, # Limit for logFC
                            padj_lim = 0.05, # Limit for the fitted p value
                            FDRtransform = log10,
-                           colors = c("Significativo up-regulated" = "#CB326D",
-                                      "Significativo down-regulated" = "#00AFBB",
+                           colors = c("Significativo up-regulated" = "#CB326D", 
+                                      "Significativo down-regulated" = "#00a0ab", #"#00AFBB", "#00a0ab"
                                       "Significativo" = "gray24",
                                       "No significativo" = "grey"),
                            pval_col = "adj.P.Val", # Adj p val column
@@ -416,7 +416,7 @@ RX_VolcanoPlot <- function(DF,
                            point_size = 1,
                            point_shape = 8,
                            label = "ENTREZID",
-                           legendTitle = "Significance",
+                           legendTitle = "Significancia",
                            ylab = "logFDR",
                            xlab = "logFC"){
   # library(ggrepel)
@@ -424,8 +424,8 @@ RX_VolcanoPlot <- function(DF,
   # Check for significant
   DF$Sig =  factor(sapply(seq(nrow(DF)), 
                           function(i) ifelse(DF[i,pval_col]>padj_lim, "No significativo",
-                                             ifelse(DF[i,logFC_col] < -logFC_lim, "Significativo down-regulated",
-                                                    ifelse(DF[i,logFC_col] > logFC_lim, "Significativo up-regulated", "Significativo" )))
+                                             ifelse(DF[i,logFC_col] < -logFC_lim, "Significativo infraexpresado",
+                                                    ifelse(DF[i,logFC_col] > logFC_lim, "Significativo sobreexpresado", "Significativo" )))
   ))
   
   # Prepare plot data
@@ -450,7 +450,7 @@ RX_VolcanoPlot <- function(DF,
     VolcanoPlot <- VolcanoPlot + 
       # Asign names
       geom_text_repel(aes(DF[,logFC_col], logFDR),
-                      label = ifelse(DF$Sig %in% c("Significativo down-regulated", "Significativo up-regulated"), 
+                      label = ifelse(DF$Sig %in% c("Significativo infraexpresado", "Significativo sobreexpresado"), 
                                      as.character(DF$SYMBOL),"")) }
   # Theme
   VolcanoPlot <- VolcanoPlot + 

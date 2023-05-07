@@ -39,7 +39,6 @@ pacman::p_load(ggrepel)
 pacman::p_load(limma)
 pacman::p_load(stringr)
 pacman::p_load(SummarizedExperiment) 
-pacman::p_load(parallel)
 
 
 # ~~~~~~~~~~~~ Functions ~~~~~~~~~~~~ #
@@ -560,33 +559,23 @@ RX_table(DT_tis, footer = val) # OUT',
         sep ="",
         file = report_out,
         append = TRUE)
-      # Recorremos los contrastes
-      contrasts = unique(unlist(sapply(Results,
-                                       function(x) RX_ifelse(!is.null(x[[tis]]),
-                                                             names(x[[tis]]), NULL),
-                                       simplify = FALSE)))
-      for (C in contrasts){
+      for (St in args$studies){
+        
+        # Recorremos los contrastes por tejido
+        contrasts = names(Results[[St]][[tis]]) 
         cat(
-          '\n###### ', C ,'  {-}  \n\n',
+          '\n###### ', St ,'  {-}  \n\n',
           # Open chunk
-          '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=', (ceiling(nSt/2)*6),', fig.align="center"}\n\n',
-          'Plots_tis = sapply(Plots, 
-                   function(x) x[["', tis,'"]][["', C,'"]],
-                   simplify = FALSE, USE.NAMES = TRUE)\n',
-          'Plots_cont = Plots_tis[which(sapply(Plots_tis, function(x) ! is.null(x)))]\n',
+          '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=', (ceiling(length(contrasts)/2)*6),', fig.align="center"}\n\n',
           '# Save plots\n',
-          'sapply(names(Plots_cont),
-                  function(x)ggsave(Plots_cont[[x]],
-                                    device = "svg",
-                                    height = 6, 
-                                    width = 10,
-                                    filename=glue("{Dir}/Plots/{x}_', tis,'_', C,'.svg")))\n',
+          'contrasts = c(', paste("'",contrasts,"'", collapse = ", ", sep = ""),')\n',
+          'knitr::include_graphics(glue("{Dir}/Plots/',St,'_',tis,'_{contrasts}.svg"))\n',
           'if (length(Plots_cont) >0){
  ggarrange(plotlist = Plots_cont,
  labels= names(Plots_cont),
  common.legend = TRUE,
  ncol = 2,
- nrow = ',(ceiling(nSt/2)),',
+ nrow = ',(ceiling(length(contrasts)/2)),',
  align = "hv",
  hjust = -0.2,
  vjust = 1,
@@ -605,7 +594,7 @@ RX_table(DT_tis, footer = val) # OUT',
     }
   }
 # Create HTML
-rmarkdown::render(report_out)
+#rmarkdown::render(report_out)
 }
 
 cat("\nDone\n")

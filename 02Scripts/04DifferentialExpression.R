@@ -39,11 +39,12 @@ pacman::p_load(ggrepel)
 pacman::p_load(limma)
 pacman::p_load(stringr)
 pacman::p_load(SummarizedExperiment) 
+pacman::p_load(parallel)
 
 
 # ~~~~~~~~~~~~ Functions ~~~~~~~~~~~~ #
 
-source("Functions/Functions.R")
+source("../Functions/Functions.R")
 RX_contrast <- function(expmatrix, design, C){
   # library(limma)
   set.seed(1808) 
@@ -210,10 +211,11 @@ parser$add_argument("-p", "--plot",
 
 args = list()
 args$report = TRUE
-args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/PruebaDE8"
+args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/DE2"
 args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data"
 #args$vars = c("Group","Obesity", "Diabetes")
-args$vars = c("Obesity")#, "Diabetes")
+#args$vars = c("Obesity", "Diabetes")
+args$vars = c("Group")
 
 args$covars = NULL
 #args$covars = "Batch"
@@ -227,7 +229,8 @@ args$studies = c("E_MEXP_1425",
                  "GSE92405",
                  "GSE141432",
                  "GSE205668")
-args$plot = FALSE
+            
+args$plot = TRUE
 report_out = glue("{args$outdir}/DifferentialExpressionReport.rmd")
 
 ## NONO
@@ -277,12 +280,20 @@ for (var in args$vars){
                                                          anotData[match(rownames(Res[[i]][[j]]$"TopTab"),
                                                                         anotData$ENTREZID),])
                                         # Volcano plot
-                                        Res[[i]][[j]]$"Plot" = RX_VolcanoPlot(Res[[i]][[j]]$"TopTab", logFC_lim = 0)
-                                        return(Res[[i]][[j]])},
-                                      simplify = FALSE),
-                   simplify = FALSE)  
+                                        if(isTRUE(args$plot)){
+                                          Plot = RX_VolcanoPlot(Res[[i]][[j]]$"TopTab", logFC_lim = 0) 
+                                          ggsave(Plot,
+                                                 device = "svg",
+                                                 height = 6, 
+                                                 width = 10,
+                                                 filename=glue("{DirDEData}/Plots/{study}_{i}_{j}.svg"))
+                                        }
+                                        #Res[[i]][[j]]$"Plot" = RX_VolcanoPlot(Res[[i]][[j]]$"TopTab", logFC_lim = 0)
+                                        return(Res[[i]][[j]])}, simplify = FALSE
+                                      ),simplify = FALSE
+                   )  
       
-      # Save the information in a R data file
+      library(parallel)# Save the information in a R data file
       Results = c(Results, list(Res))
       Studies_out = c(Studies_out, study)
       #save(Res, file = glue("{DirDEData}/{Acc}DifferentialExpression{var}.RData")) 
@@ -356,13 +367,7 @@ Dir = "',args$outdir,'" ',
     '\n```  \n\n','\n&nbsp;  \n\n',
     sep ="",
     file = report_out,
-    append = TRUE)
-  
-  cat('\n## Análisis de expresión diferencial {.tabset .tabset-fade -}  \n',
-      '&nbsp;  \n\n',
-      sep ="",
-      file = report_out,
-      append = TRUE)
+    append = TRUE) 
   # Load packages
   cat(
     # Open chunk

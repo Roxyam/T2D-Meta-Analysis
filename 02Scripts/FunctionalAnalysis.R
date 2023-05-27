@@ -35,7 +35,7 @@ pacman::p_load(sf)
 
 
 # ~~~~~~~~~~~~ Functions ~~~~~~~~~~~~ #
-
+set.seed(2808)
 
 # ~~~~~~~~~~~~ Parameters ~~~~~~~~~~~~ #
 
@@ -46,14 +46,26 @@ parser <- ArgumentParser(description="")
 #------------- Prepare arguments
 args = list()
 args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/MA/Obesity"
+#args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/MA/Diabetes"
+
 args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/FA"
+
 args$outname = "Obesidad"
+#args$outname = "Diabetes"
+
 args$files = c("ObvsNp/Meta-analysis_1_DF.RData", 
                   "ObMvsNpM/Meta-analysis_2_DF.RData",
                   "ObFvsNpF/Meta-analysis_3_DF.RData",
                   "ObM_NpMvsObF_NpF/Meta-analysis_4_DF.RData")
-args$contrasts = c("Ob - Np", "Ob.M - Np.M", "Ob.F - Np.F",
-                   "(Ob.M - Np.M) - (Ob.F-  Np.F)")
+'args$files = c("ObIRvsObIS/Meta-analysis_1_DF.RData", 
+               "ObIRMvsObISM/Meta-analysis_2_DF.RData",
+               "ObIRFvsObISF/Meta-analysis_3_DF.RData",
+               "IRM_ISMvsIRF_ISF/Meta-analysis_4_DF.RData")'
+
+args$contrasts = c("Ob_IS - Np_IS", "Ob_IS.M - Np_IS.M", "Ob_IS.F - Np_IS.F", "(Ob_IS.M - Np_IS.M) - (Ob_IS.F-  Np_IS.F)")
+'args$contrasts = c("Ob_IR - Ob_IS", "Ob_IR.M - Ob_IS.M", "Ob_IR.F - Ob_IS.F",
+                   "(Ob_IR.M-Ob_IS.M) - (Ob_IR.F-Ob_IS.F)")'
+
 args$method = c("ORA") # ORA or GSEA
 args$database = c("BP", "MF", "CC", "KEGG", "Reactome")
 
@@ -65,7 +77,7 @@ contrasts = args$contrasts
 
 #------------- Functional Analysis
 if(args$method == "ORA"){
-  cat("\n\t> ORA\n")
+  cat("\n> ORA\n")
   cat("\n---------------------------------------------\n")
   # Prepare the data
   p_lim = 0.05
@@ -176,6 +188,101 @@ if(args$method == "ORA"){
     save(Results, file=glue("{DirOut}/{args$outname}_oraReactome.RData"))
   }
 }else{
+  cat("\n> GSEA\n")
+  cat("\n---------------------------------------------\n")
+  # Prepare the data  
+  # Gene lists
+  Data = sapply(Datas, function(x){
+    geneList <- x$logFC
+    names(geneList) <- as.character(row.names(x))
+    geneList <- sort(geneList, decreasing = TRUE) 
+    return(geneList)
+  }, simplify = FALSE)   
+  names(Data) = contrasts
+  
+  # Go BP
+  if ("BP" %in% args$database){ 
+    cat("\n\tBP\n") 
+    Results = mclapply(contrasts, function(c){
+      geneList = Data[[c]]
+      enrich_result <- gseGO(geneList      = geneList,
+                             OrgDb         = org.Hs.eg.db,  
+                             keyType       = "ENTREZID",  
+                             ont           = "BP", 
+                             pAdjustMethod = "BH",  
+                             pvalueCutoff  = 0.05,
+                             seed = TRUE)
+      return(enrich_result)})
+    Results = setNames(Results, contrasts) 
+    
+    save(Results, file=glue("{DirOut}/{args$outname}_gseBP.RData"))
+  }
+  # GO MF
+  if ("MF" %in% args$database){ 
+    cat("\n\tMF\n") 
+    Results = mclapply(contrasts, function(c){
+      geneList = Data[[c]]
+      enrich_result <- gseGO(geneList      = geneList,
+                             OrgDb         = org.Hs.eg.db,  
+                             keyType       = "ENTREZID",  
+                             ont           = "MF", 
+                             pAdjustMethod = "BH",  
+                             pvalueCutoff  = 0.05,
+                             seed = TRUE)
+      return(enrich_result)})
+    Results = setNames(Results, contrasts) 
+    
+    save(Results, file=glue("{DirOut}/{args$outname}_gseMF.RData"))
+  }
+  # GO CC
+  if ("CC" %in% args$database){ 
+    cat("\n\tCC\n") 
+    Results = mclapply(contrasts, function(c){
+      geneList = Data[[c]]
+      enrich_result <- gseGO(geneList      = geneList,
+                             OrgDb         = org.Hs.eg.db,  
+                             keyType       = "ENTREZID",  
+                             ont           = "CC", 
+                             pAdjustMethod = "BH",  
+                             pvalueCutoff  = 0.05,
+                             seed = TRUE)
+      return(enrich_result)}) 
+    Results = setNames(Results, contrasts) 
+    
+    save(Results, file=glue("{DirOut}/{args$outname}_gseCC.RData"))
+  }
+  # KEGG
+  if ("KEGG" %in% args$database){ 
+    cat("\n\tKEGG\n") 
+    Results = mclapply(contrasts, function(c){
+      geneList = Data[[c]]
+      enrich_result <- gseKEGG(geneList      = geneList,
+                               organism      = "hsa",
+                               keyType       = "ncbi-geneid",
+                               pAdjustMethod = "BH",
+                               pvalueCutoff = 0.05,
+                               seed = TRUE,
+                               use_internal_data = TRUE)
+      return(enrich_result)}) 
+    Results = setNames(Results, contrasts) 
+    
+    save(Results, file=glue("{DirOut}/{args$outname}_gseKEGG.RData"))
+  }
+  # Reactome
+  if ("Reactome" %in% args$database){ 
+    cat("\n\tReactome\n") 
+    Results = mclapply(contrasts, function(c){
+      geneList = Data[[c]]
+      enrich_result <- gsePathway(geneList      = geneList,
+                                  organism      = "human", 
+                                  pAdjustMethod = "BH",  
+                                  pvalueCutoff  = 0.05,
+                                  seed = TRUE)
+      return(enrich_result)})
+    Results = setNames(Results, contrasts) 
+    
+    save(Results, file=glue("{DirOut}/{args$outname}_gseReactome.RData"))
+  }
   
 }
 

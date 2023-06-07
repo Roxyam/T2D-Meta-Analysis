@@ -35,11 +35,11 @@ pacman::p_load(sf)
 
 
 # ~~~~~~~~~~~~ Functions ~~~~~~~~~~~~ #
-set.seed(2808)
+set.seed(1808)
 
 # ~~~~~~~~~~~~ Parameters ~~~~~~~~~~~~ #
 
-parser <- ArgumentParser(description="")
+# <- ArgumentParser(description="")
 
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
@@ -48,7 +48,7 @@ args = list()
 args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/MA/Obesity"
 #args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/MA/Diabetes"
 
-args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/FA"
+args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/FA_intersect"
 
 args$outname = "Obesidad"
 #args$outname = "Diabetes"
@@ -57,17 +57,20 @@ args$files = c("ObvsNp/Meta-analysis_1_DF.RData",
                   "ObMvsNpM/Meta-analysis_2_DF.RData",
                   "ObFvsNpF/Meta-analysis_3_DF.RData",
                   "ObM_NpMvsObF_NpF/Meta-analysis_4_DF.RData")
-'args$files = c("ObIRvsObIS/Meta-analysis_1_DF.RData", 
+'args$files = c("ObM_NpMvsObF_NpF/Meta-analysis_4_DF.RData")
+args$files = c("ObIRvsObIS/Meta-analysis_1_DF.RData", 
                "ObIRMvsObISM/Meta-analysis_2_DF.RData",
                "ObIRFvsObISF/Meta-analysis_3_DF.RData",
                "IRM_ISMvsIRF_ISF/Meta-analysis_4_DF.RData")'
 
 args$contrasts = c("Ob_IS - Np_IS", "Ob_IS.M - Np_IS.M", "Ob_IS.F - Np_IS.F", "(Ob_IS.M - Np_IS.M) - (Ob_IS.F-  Np_IS.F)")
+#args$contrasts = c( "(Ob_IS.M - Np_IS.M) - (Ob_IS.F-  Np_IS.F)")
 'args$contrasts = c("Ob_IR - Ob_IS", "Ob_IR.M - Ob_IS.M", "Ob_IR.F - Ob_IS.F",
                    "(Ob_IR.M-Ob_IS.M) - (Ob_IR.F-Ob_IS.F)")'
 
-args$method = c("ORA") # ORA or GSEA
+args$method = c("GSEA") # ORA or GSEA
 args$database = c("BP", "MF", "CC", "KEGG", "Reactome")
+args$isec = c(2,3) # Si ponemos intersect en los de sexo toma solo los exclusivos?
 
 # Get data
 DirOut = args$outdir
@@ -83,15 +86,23 @@ if(args$method == "ORA"){
   p_lim = 0.05
   logFC_lim = 0
   
-  # Gene lists
-  Direction = c("Up", "Down")
+  # Gene lists 
   
   Data = sapply(Datas, function(Data){
     Up = rownames(Data[which(Data$p.adjust.BH < p_lim & Data$logFC > logFC_lim), ])
     Down = rownames(Data[which(Data$p.adjust.BH < p_lim & Data$logFC < 0), ])
+    #Up = (Data[which(Data$p.adjust.BH < p_lim & Data$logFC > logFC_lim), "Symbol"])
+    #Down = (Data[which(Data$p.adjust.BH < p_lim & Data$logFC < 0), "Symbol"])
     return(c("Up" = list(Up), "Down" = list(Down)))
   }, simplify = FALSE)
   names(Data) = contrasts
+  
+  if(! is.null(args$isec)){
+    Data[[args$isec[[1]]]]$Up = setdiff(Data[[args$isec[[1]]]][[1]], Data[[args$isec[[2]]]][[1]])
+    Data[[args$isec[[1]]]]$Down = setdiff(Data[[args$isec[[1]]]][[2]], Data[[args$isec[[2]]]][[2]])
+    Data[[args$isec[[2]]]]$Up = setdiff(Data[[args$isec[[2]]]][[1]], Data[[args$isec[[1]]]][[1]])
+    Data[[args$isec[[2]]]]$Down = setdiff(Data[[args$isec[[2]]]][[2]], Data[[args$isec[[2]]]][[1]])
+      }
   
   # Go BP
   if ("BP" %in% args$database){ 

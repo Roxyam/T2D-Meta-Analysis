@@ -211,11 +211,11 @@ parser$add_argument("-p", "--plot",
 
 args = list()
 args$report = TRUE
-args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/DE1"
-args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data"
+args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/DEFinal"
+args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data0"
 #args$vars = c("Group","Obesity", "Diabetes")
 #args$vars = c("Obesity", "Diabetes")
-args$vars = c("Group")
+args$vars = c("Group") 
 
 args$covars = NULL
 #args$covars = "Batch"
@@ -225,7 +225,6 @@ args$studies = c("E_MEXP_1425",
                  "GSE20950", 
                  "GSE29718", 
                  "GSE64567",
-                 "GSE78721",
                  "GSE92405",
                  "GSE141432",
                  "GSE205668")
@@ -380,7 +379,6 @@ RX_grid_img <- function(paths){
     a = image = image_read(paths[i])
     b = image_read(paths[i+1])
     row = image_append(c(a, b))
-    print(i)
     if(is.null(grid)){
       grid = row
     }else{
@@ -585,7 +583,7 @@ RX_table(DT_tis, footer = val) # OUT',
           '\n###### ', St ,'  {-}  \n\n',
           # Open chunk
           '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=', (ceiling(length(contrasts)/2)*5),', fig.align="center"}\n\n',
-          'contrasts = c(', paste("'",contrasts,"'", collapse = ", ", sep = ""),')\n',
+          'contrasts = c(', paste("'",str_replace_all(contrasts, "\\s", ""),"'", collapse = ", ", sep = ""),')\n',
           'paths = glue("{Dir}/Plots/',St,'_',tis,'_{contrasts}.svg")\n',
           'RX_grid_img(paths)\n', 
           # Close chunk

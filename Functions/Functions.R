@@ -249,10 +249,12 @@ RX_resumeBarPlot <- function(Data, # ExpressionSet or SummarizedExperiment
                              Fac_1_tit = Fac_1, # Factor one legend title, by default is the name of the variable
                              Fac_2_tit = Fac_2, # Factor two legend title, by default is the name of the variable
                              sep_width=0.4, # Bar spacing
+                             Labels = TRUE,
                              numLabels = TRUE, # Add label with the number of samples per group
                              porcentLabels = TRUE, # Add label with the percentage of samples per group with respect to factor 1
                              numpos = 1.6, # Position of the number labels on the y-axis with respect to the end of the bar.
-                             porcentpos = 4 # Position of the percentage labels on the y-axis with respect to the end of the bar.
+                             porcentpos = 4, # Position of the percentage labels on the y-axis with respect to the end of the bar.
+                             size = 1 # Border size
 ){
   #library(plyr)
   #library(dplyr)
@@ -288,7 +290,7 @@ RX_resumeBarPlot <- function(Data, # ExpressionSet or SummarizedExperiment
                                  alpha= RX_ifelse(is.null(Fac_2), NULL, Fac_2))) + 
       geom_bar(width = sep_width,stat="identity", 
                position = position_stack(reverse = TRUE),
-               size  = 1.5
+               size  = size
                #color = "#525152" 
                #position = position_dodge()
       ) 
@@ -339,7 +341,7 @@ RX_resumeBarPlot <- function(Data, # ExpressionSet or SummarizedExperiment
                                  alpha= Fac_2)) + 
       geom_bar(width = sep_width,stat="identity", 
                position = position_dodge(), 
-               size  = 1.5
+               size  = size
       )     
     # Etiquetas
     if(isTRUE(Labels)){
@@ -407,8 +409,8 @@ RX_VolcanoPlot <- function(DF,
                            logFC_lim = 1, # Limit for logFC
                            padj_lim = 0.05, # Limit for the fitted p value
                            FDRtransform = log10,
-                           colors = c("Significativo up-regulated" = "#CB326D", 
-                                      "Significativo down-regulated" = "#00a0ab", #"#00AFBB", "#00a0ab"
+                           colors = c("Significativo logFC > 0" = "#CB326D", 
+                                      "Significativo logFC < 0" = "#00a0ab", #"#00AFBB", "#00a0ab"
                                       "Significativo" = "gray24",
                                       "No significativo" = "grey"),
                            pval_col = "adj.P.Val", # Adj p val column
@@ -417,15 +419,15 @@ RX_VolcanoPlot <- function(DF,
                            point_shape = 8,
                            label = "ENTREZID",
                            legendTitle = "Significancia",
-                           ylab = "logFDR",
+                           ylab = "- log10 (FDR)",
                            xlab = "logFC"){
   # library(ggrepel)
   # library(ggplot2)
   # Check for significant
   DF$Sig =  factor(sapply(seq(nrow(DF)), 
                           function(i) ifelse(DF[i,pval_col]>padj_lim, "No significativo",
-                                             ifelse(DF[i,logFC_col] < -logFC_lim, "Significativo infraexpresado",
-                                                    ifelse(DF[i,logFC_col] > logFC_lim, "Significativo sobreexpresado", "Significativo" )))
+                                             ifelse(DF[i,logFC_col] < -logFC_lim, "Significativo logFC < 0",
+                                                    ifelse(DF[i,logFC_col] > logFC_lim, "Significativo logFC > 0", "Significativo" )))
   ))
   
   # Prepare plot data
@@ -450,7 +452,7 @@ RX_VolcanoPlot <- function(DF,
     VolcanoPlot <- VolcanoPlot + 
       # Asign names
       geom_text_repel(aes(DF[,logFC_col], logFDR),
-                      label = ifelse(DF$Sig %in% c("Significativo infraexpresado", "Significativo sobreexpresado"), 
+                      label = ifelse(DF$Sig %in% c("Significativo logFC < 0", "Significativo logFC > 0"), 
                                      as.character(DF$SYMBOL),"")) }
   # Theme
   VolcanoPlot <- VolcanoPlot + 
@@ -462,7 +464,7 @@ RX_VolcanoPlot <- function(DF,
   # Labels
   VolcanoPlot <- VolcanoPlot + 
     ylab(ylab) +
-    xlab(xlab) 
+    xlab(xlab)  #+ theme(legend.position="none")
   
   return(VolcanoPlot)
 }

@@ -205,6 +205,7 @@ if(args$method == "ORA"){
   # Gene lists
   Data = sapply(Datas, function(x){
     geneList <- x$logFC
+    #geneList <- sapply(seq(nrow(x)), function(i) ifelse( x[i, "logFC"] > 0, x[i, "p.adjust.BH"], -x[i, "p.adjust.BH"]))
     names(geneList) <- as.character(row.names(x))
     geneList <- sort(geneList, decreasing = TRUE) 
     return(geneList)

@@ -1,0 +1,2523 @@
+---
+title: "02 Preprocesamiento"
+author: "Roxana Andreea Moldovan Moldovan"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: false
+    toc_float: false
+    number_sections: false 
+    code_folding: hide
+    theme: flatly
+    bg: '#FFFFFF'
+    fg: '#202020'
+    primary: '#90C432'
+    secondary: '#2494b5' 
+  pdf_document:
+    extra_dependencies: "subfig"
+linkcolor: blue
+urlcolor: blue
+citecolor: blue
+header-includes:
+- \usepackage{subfig}
+- \usepackage{float}
+fig_caption: yes 
+link-citations: TRUE
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Información general
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+## Carga de paquetes
+library(pacman)
+pacman::p_load(affy)
+pacman::p_load("AnnotationDbi")
+pacman::p_load(glue)
+pacman::p_load(limma)
+pacman::p_load("lumi")
+pacman::p_load(S4Vectors)
+pacman::p_load(stringr)
+pacman::p_load(SummarizedExperiment)
+pacman::p_load(sva)
+
+## Parametros
+DirBase = "/home/rmoldovan/Metaanalisis"
+DirData = glue("{DirBase}/Data")
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+## Carga de funciones
+source(glue("{DirBase}/Functions/Functions.R"))
+```
+
+Este fichero se enfoca a la unificación de todos los estudios, incluyendo
+apertura, procesado,creación de las variables fenotípicas de interés, 
+normalización, anotación y conversión en SummarizedExperiment o ExpressionSet.   
+
+# Microarrays:  
+
+## E-MEXP-1425  
+
+
+Estudio transcriptómico mediante microarrays empleando la plataforma Affymetrix 
+GeneChip Human Genome U133 Plus 2.0 [HG-U133_Plus_2].  
+
+Dicho estudio pretende  elucidar los perfiles transcriptómicos de la obesidad,
+en base a un diseño experimental de “controles clonales”. Para ello se emplearon
+muestras de a SAT de doce parejas de gemelos homocigotos y una de trillizos con
+obesidad discordante y con una diferencia de BMI>3kg/m2.   
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Parametros
+Acc = "E_MEXP_1425"
+DirrawData0 = paste(DirData, Acc, "01RawData", sep = "/")
+DirRData = paste(DirData, Acc, "02RData", sep = "/")
+# Creamos el directorio para almacenar los datos
+system(glue("mkdir {DirRData}"))
+
+```
+
+
+### Datos fenotípicos
+
+Cargamos la información del experimento:  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+FileMetadata = list.files(path = DirrawData0, pattern = "sdrf.txt",
+                          full.names = TRUE)
+type = "txt"
+# Cargamos los datos
+if(type == "Rdata"){
+  load(FileMetadata) 
+  # Tomamos los datos
+  pD1 = pData(metadata)
+  expData = experimentData(metadata)
+  }else{
+    pD1 = read.table(FileMetadata, header = TRUE, sep = "\t", 
+                          fill = TRUE, comment.char = "")
+    FileExp = list.files(path = DirrawData0, pattern = "idf.txt",
+                          full.names = TRUE)
+    expData = NULL
+  }
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+#pD1
+table(pD1$"Characteristics..sex.")
+```  
+
+
+Creamos un objeto con la información fenotípica de interés:
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE} 
+# Creamos los factores 
+## Obesidad
+obesity_dict = c("normal" = "Np",
+                  "obesity" = "Ob")
+obesity = factor(x = RX_coind(obesity_dict, pD1$"Factor.Value..disease."),
+                levels = c("Np", "Ob"))
+
+## Diabetes
+diabetes = factor(x = rep("IS", nrow(pD1)),
+                  levels = c("IS"))
+
+## Grupo
+group = interaction(obesity, diabetes, sep = "_")
+
+## Genero
+gender_dict = c("female" = "F",
+                "male" = "M") 
+gender = factor(x = RX_coind(gender_dict, pD1$"Characteristics..sex."),
+                levels = c("M", "F"))
+
+## Tejido
+tissue = factor(x = rep("SAT", nrow(pD1)),
+                levels = "SAT")
+
+## Edad 
+age = pD1$"Characteristics..age."
+ageG = factor(x = (sapply(age, function(x) RX_ifelse(x >= 18, "Adult", 
+                                                    "Non adults"), 
+                  simplify = TRUE, USE.NAMES = FALSE)),
+                  levels = c("Adult"))
+
+# BMI
+bmi = as.numeric(str_split_i(pD1$"Characteristics..clinical.information.",
+                             pattern = ": ", i=2))
+
+## Batch
+batch = str_split_i(pD1$Source.Name, pattern = " ", i=3)
+ord = order(as.numeric(batch))
+batch = glue('B{batch}')
+batch = factor(batch,
+               levels = unique(batch[ord]))
+
+#Almacenamos los datos fenotípicos
+phenoData0 = data.frame(Gender = gender,
+                        Group = group,
+                        Obesity = obesity,
+                        Diabetes = diabetes,
+                        Tissue = tissue,
+                        Patient = "-",
+                        AgeGroup = ageG,
+                        Batch = batch,
+                        BMI = bmi,
+                        Age = age,
+                        pD1) 
+
+# Ordenamos en base al tejido, grupo y genero 
+orden = order(phenoData0$Tissue,
+              phenoData0$Obesity,
+              phenoData0$Diabetes,
+              phenoData0$Gender)
+
+phenoData1 = phenoData0[orden,]
+
+
+## Paciente ( todos son distintos)
+patient = factor(glue("P{seq(nrow(pD1))}"),
+                 levels = glue("P{seq(nrow(pD1))}"))
+phenoData1$Patient = patient
+
+# Nombramos las muestras
+samples = factor(glue("S{seq(nrow(pD1))}"),
+                 levels = glue("S{seq(nrow(pD1))}"))
+
+phenoData = data.frame("Sample" = samples,
+                       "Accesion" = "-",
+                       phenoData1,
+                       row.names = samples)
+
+```   
+
+
+### Datos de expresión
+
+Listamos la información del estudio.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos los ficheros
+files = list.files(path = DirrawData0)
+CelFiles0 = files[endsWith(files, "CEL.gz") | endsWith(files, "CEL")]
+
+# Tomamos los fichos en el orden deseado
+CelFiles = phenoData$Array.Data.File
+```
+
+Almacenamos los datos en un Affy batch
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Creamos el objeto
+rawData0 = affy::ReadAffy(celfile.path = DirrawData0,
+                          filenames = CelFiles,
+                          sampleNames = row.names(phenoData),
+                          phenoData = phenoData)
+```
+
+Guardamos los datos de imagen sin procesar.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE} 
+# Guardamos los datos
+probeData = rawData0
+save(probeData, file = glue("{DirRData}/probeData.RData"))
+```  
+
+
+### Expresión  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/probeData.RData"))
+```
+
+
+Convertimos los datos de imagen a un Expression set que contenga la información de 
+expresión.
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la información de expresión por sonda y los guardamos
+rawData = rma(probeData, normalize = FALSE,  background = FALSE)
+save(rawData, file = glue("{DirRData}/rawData.RData"))
+```  
+
+### Anotacion   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/rawData.RData"))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la plataforma de anotación
+cat("La plataforma empleada para la anotación es",
+    annotation(rawData), "\n")
+```  
+
+Cargamos los datos de anotación.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos la base de datos
+anotdb = "hgu133plus2.db"
+pacman::p_load(char = anotdb)
+```
+
+Para anotar, tomaremos la mediana de la expresión de las sondas que corresponden
+a un mismo gen, mientras que si varios genes corresponden con una misma sonda, 
+tomaremos el primer identificador de gen.     
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conversion de sondas a genes
+#rm(rawData_anot)
+rawData_anot = RX_probe2gene(rawData,
+                             anotdb = hgu133plus2.db,
+                             multi.from = median)   
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones
+rawData_anot = RX_annot(rawData_anot,
+                        db = org.Hs.eg.db,
+                        fromAnot="ENTREZID",
+                        toAnot = c("ENSEMBL","SYMBOL")) 
+```
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(rawData)} sondas, y tras la anotación nos quedamos
+      con {nrow(rawData_anot)} genes.")
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(rawData_anot, file = glue("{DirRData}/rawData_anot.RData"))
+```    
+
+
+### Normalización  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/probeData.RData"))
+```
+
+Llevaremos a cabo una normalización por cuartiles y una corrección de fondo
+usando RMA.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la información de expresión por sonda y los guardamos
+normData = rma(probeData, normalize=TRUE, background = TRUE)
+save(normData, file = glue("{DirRData}/normData.RData"))
+```  
+
+
+### Anotación    
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/normData.RData"))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la plataforma de anotación
+cat("La plataforma empleada para la anotación es",
+    annotation(normData), "\n")
+```  
+
+Cargamos los datos de anotación.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos la base de datos
+anotdb = "hgu133plus2.db"
+pacman::p_load(char = anotdb)
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conversion de sondas a genes
+#rm(normData_anot)
+normData_anot = RX_probe2gene(normData,
+                              anotdb = hgu133plus2.db,
+                              multi.from = median)   
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones
+normData_anot = RX_annot(normData_anot,
+                         db = org.Hs.eg.db,
+                         fromAnot="ENTREZID",
+                         toAnot = c("ENSEMBL","SYMBOL")) 
+```  
+
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(normData)} sondas, y tras la anotación nos quedamos
+      con {nrow(normData_anot)} genes.")
+```  
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(normData_anot, file = glue("{DirRData}/normData_anot.RData"))
+```   
+
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión 
+diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData_anot.RData"))
+finalData = normData_anot
+save(finalData, file = glue("{DirRData}/finalData.RData"))
+```  
+
+
+***   
+
+## GSE2508  
+
+&nbsp;   
+
+Estudio transcriptómico mediante arrays empleando las plataformas:  
+* [HG_U95A] Affymetrix Human Genome U95A Array.  
+* [HG_U95B] Affymetrix Human Genome U95B Array.  
+* [HG_U95C] Affymetrix Human Genome U95C Array.  
+* [HG_U95D] Affymetrix Human Genome U95D Array.  
+* [HG_U95E] Affymetrix Human Genome U95E Array.  
+* [HG_U95Av2] Affymetrix Human Genome U95 Version 2 Array.  
+
+Dicho estudio pretende estudiar los perfiles transcriptómicos diferenciales
+entre pacientes sanos, no resistentes a insulina, 20 obesos y 19 con peso
+normal a partir de adipocitos provenientes del tejido adiposo subcutáneo
+abdominal, considerando obesos los pacientes que presentan un BMI mayor o
+igual a 30kg/m2.   
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Parametros
+Acc = "GSE2508"
+DirnormData0 = paste(DirData, Acc, "01rawData", sep = "/")
+DirRData = paste(DirData, Acc, "02RData", sep = "/")
+# Creamos el directorio para almacenar los datos
+system(glue("mkdir {DirRData}"))
+
+```
+
+
+### Datos fenotípicos
+
+Cargamos la información, en este caso se han usado 6 plataformas distintas que
+hay que combinar:  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+FileMetadata = list.files(path = DirnormData0, pattern = "((R|r)(D|d)ata)|rda",
+                          full.names = TRUE)
+metadatas =  get(load(FileMetadata))
+pDs = sapply(metadata, function(x) pData(x))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Unimos la informacion de todos
+pD0 = rbind(pDs[[2]][,colnames(pDs[[1]])], pDs[[1]] )
+pDs1 = c("GSE2508-GPL91_series_matrix.txt.gz" = list(pD0), pDs[3:6])
+
+# Accesion 
+accesion = sapply(seq(nrow(pDs1[[1]])), 
+                  function(i) paste(sapply(pDs1, 
+                                           function(x) x[i,'geo_accession']),
+                                    collapse = "//"),
+                  simplify = TRUE)
+
+# Batch
+batch = str_split_i(pDs1[[1]]$title, pattern = "sub", i = 2)
+
+# Platoform
+platform_id = sapply(seq(nrow(pDs1[[1]])), 
+                     function(i) paste(sapply(pDs1, 
+                                              function(x) x[i,'platform_id']), 
+                                       collapse = "//"),
+                     simplify = TRUE)
+
+# Info
+info = sapply(seq(nrow(pDs1[[1]])), 
+              function(i) paste(sapply(pDs1, 
+                                       function(x) str_split_i(x[i,'title'], 
+                                                               pattern = "sub", 
+                                                               i = 2)), 
+                                collapse = "//"),
+              simplify = TRUE)
+
+pD1 = pDs1[[1]]
+pD1[,c("geo_accession", "platform_id")] = c(accesion, platform_id)
+pD1$info = info
+```
+
+
+Creamos un objeto con la información fenotípica de interés:
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE} 
+# Creamos los factores 
+## Obesidad
+ob = str_split_i(pD1$title, pattern = " ", i = 1)
+obesity_dict = c("Lean" = "Np",
+                  "Obese" = "Ob")
+obesity = factor(x = RX_coind(obesity_dict, ob),
+                levels = c("Np", "Ob"))
+
+## Diabetes
+diabetes = factor(x = rep("IS", nrow(pD1)),
+                  levels = c("IS"))
+
+## Grupo
+group = interaction(obesity, diabetes, sep = "_")
+
+## Genero
+g = str_split_i(pD1$title, pattern = " ", i = 2)
+gender = factor(x = g,
+                levels = c("M", "F"))
+
+## Tejido
+tissue = factor(x = rep("SAT", nrow(pD1)),
+                levels = "SAT")
+
+## Edad
+ageG = factor(x = rep("Adult", nrow(pD1)),
+                  levels = c("Adult"))
+  
+## Batch
+batch_dict = c("A" = "B1",
+               "Av2" = "B2")
+batch = factor(x = RX_coind(batch_dict, batch),
+                levels = batch_dict)
+
+#Almacenamos los datos fenotípicos
+phenoData0 = data.frame(Gender = gender,
+                        Group = group,
+                        Obesity = obesity,
+                        Diabetes = diabetes,
+                        Tissue = tissue,
+                        Patient = "-",
+                        AgeGroup = ageG,
+                        Batch = batch,
+                        BMI = "-",
+                        Age = "-",
+                        pD1) 
+
+# Ordenamos en base al tejido, grupo y genero 
+orden = order(phenoData0$Tissue,
+              phenoData0$Obesity,
+              phenoData0$Diabetes,
+              phenoData0$Gender)
+
+phenoData1 = phenoData0[orden,]
+
+
+## Paciente ( todos son distintos)
+patient = factor(glue("P{seq(nrow(pD1))}"),
+                 levels = glue("P{seq(nrow(pD1))}"))
+phenoData1$Patient = patient
+
+# Nombramos las muestras
+samples = factor(glue("S{seq(nrow(pD1))}"),
+                 levels = glue("S{seq(nrow(pD1))}"))
+
+phenoData = data.frame("Sample" = samples,
+                       "Accesion" = phenoData1$geo_accession,
+                       phenoData1,
+                       row.names = samples)
+
+```   
+
+
+### Datos de expresión
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Toammaos los datos de expresion
+exprsDatas = sapply(metadatas, function(x) exprs(x))
+# Unimos los dos primeros
+exprsData1 = merge(data.frame(exprsDatas[[2]]), data.frame(exprsDatas[[1]]), by="row.names", all=FALSE)
+rownames(exprsData1) = exprsData1$Row.names
+exprsData1 = exprsData1[,c(2:ncol(exprsData1))]
+# Los añadimos al conjutno con el resto
+exprsDatas1 = c("GSE2508-GPL91_series_matrix.txt.gz" = list(as.matrix(exprsData1)), exprsDatas[3:6]) 
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Reordenamos los datos y los nombremos como las muestras  
+# Tomamos la coincidencia entre los nombres asignados de las muestras
+ind = sapply(seq(exprsDatas1), 
+             function(i) match(str_split_i(phenoData$Accesion, 
+                                           pattern = "//", i = i), 
+                               colnames(exprsDatas1[[i]]) ),
+             simplify = FALSE) 
+# Reordenamos
+exprsDatas1 = sapply(seq(exprsDatas1), function(i) exprsDatas1[[i]][, ind[[i]]])
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Unimos
+exprsDatasF = do.call("rbind", exprsDatas1) 
+# Asignamos los nombres 
+colnames(exprsDatasF) = phenoData$Sample
+# Guardamos la información en un ExpressionSet
+keep = match(unique(row.names(exprsDatasF)), row.names(exprsDatasF))
+normData = ExpressionSet(assayData = exprsDatasF[keep,], 
+                        annotation = "hgu133plus2.db")
+pData(normData) = phenoData 
+```
+
+
+Transformación logarítmica:
+
+```{r}
+exprs(normData) = log2(exprs(normData) + 1)
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la información de expresión por sonda y los guardamos
+save(normData, file = glue("{DirRData}/normData.RData"))
+```  
+
+### Anotacion     
+
+En este caso al tratarse de distintas plataformas debemos tomar las anotaciones
+de cada una de ellas y agruparlas.
+Para anotar, tomaremos la mediana de la expresión de las sondas que corresponden
+a un mismo gen, mientras que si varios genes corresponden con una misma sonda,
+tomaremos el primer identificador de gen.   
+
+```{r}
+annotations = c("hgu95av2.db","hgu95a.db","hgu95b.db",
+                "hgu95c.db","hgu95d.db", "hgu95e.db")
+Anots = sapply(annotations, function(x){ 
+  # Cargamos los datos 
+  pacman::p_load(char = x)
+  print(x)
+  Anot0 = AnnotationDbi::select(x = get(x),
+                                keys = rownames(normData),
+                                columns = "ENTREZID",
+                                keytype = "PROBEID")
+  Anot = Anot0[which(! is.na(Anot0$ENTREZID)),]
+  return(Anot)}, simplify = FALSE)
+
+anot_tb = do.call("rbind", Anots)
+normData_anot = RX_probe2gene(normData,
+                              anot_tb = anot_tb,
+                              multi.from = median)   
+normData_anot = RX_annot(normData_anot,
+                        db = org.Hs.eg.db,
+                        fromAnot="ENTREZID",
+                        toAnot = c("ENSEMBL","SYMBOL"))  
+```
+
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(normData)} sondas, y tras la anotación nos quedamos
+      con {nrow(normData_anot)} genes.")
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(normData_anot, file = glue("{DirRData}/normData_anot.RData"))
+```    
+
+
+### Correccion del Batch effect  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/normData.RData"))
+```  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}   
+# Usamos ComBat para corregir el batch effect encontrado
+normData2 = normData 
+exprs(normData2) = ComBat(exprs(normData), batch = normData$Batch) 
+``` 
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(normData2, file = glue("{DirRData}/normData2.RData"))
+```  
+
+### Anotación     
+
+```{r}
+annotations = c("hgu95av2.db","hgu95a.db", "hgu95b.db",
+                "hgu95c.db", "hgu95d.db", "hgu95e.db")
+Anots = sapply(annotations, function(x){ 
+  # Cargamos los datos 
+  pacman::p_load(char = x)
+  print(x)
+  Anot0 = AnnotationDbi::select(x = get(x),
+                                keys = rownames(normData2),
+                                columns = "ENTREZID",
+                                keytype = "PROBEID")
+  Anot = Anot0[which(! is.na(Anot0$ENTREZID)),]
+  return(Anot)}, simplify = FALSE)
+
+anot_tb = do.call("rbind", Anots)
+normData2_anot = RX_probe2gene(normData2,
+                              anot_tb = anot_tb,
+                             multi.from = median)   
+normData2_anot = RX_annot(normData2_anot,
+                        db = org.Hs.eg.db,
+                        fromAnot="ENTREZID",
+                        toAnot = c("ENSEMBL","SYMBOL"))  
+```
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(normData2)} sondas, y tras la anotación nos quedamos
+      con {nrow(normData2_anot)} genes.")
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(normData2_anot, file = glue("{DirRData}/normData2_anot.RData"))
+```  
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión 
+diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData2_anot.RData"))
+finalData = normData2_anot
+save(finalData, file = glue("{DirRData}/finalData.RData"))
+```  
+
+***   
+
+
+## GSE20950
+
+&nbsp;  
+
+Estudio transcriptómico mediante arrays empleando la plataforma [HG-U133_Plus_2] 
+Affymetrix Human Genome U133 Plus 2.0 Array (GPL570).   
+
+Dicho estudio pone de manifiesto la obesidad como factor de riesgo en el
+desarrollo de enfermedades y trastornos metabólicos, más exactamente en el
+desarrollo de resistencia a insulina, paro lo que se han analizado los perfiles
+de expresión de pacientes obesos resistentes y sensibles a insulina a partir de
+muestras de tejido subcutáneo adiposos abdominal (SAT) y omental (VAT) de 20
+pacientes adultos, con una media de edad de 42 años. 
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Parametros
+Acc = "GSE20950"
+DirrawData0 = paste(DirData, Acc, "01RawData", sep = "/")
+DirRData = paste(DirData, Acc, "02RData", sep = "/")
+# Creamos el directorio para almacenar los datos
+system(glue("mkdir {DirRData}"))
+
+```
+
+
+### Datos fenotípicos
+
+Cargamos la información del experimento:  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+FileMetadata = list.files(path = DirrawData0, pattern = "((R|r)(D|d)ata)|rda",
+                          full.names = TRUE)
+type = "Rdata"
+# Cargamos los datos
+if(type == "Rdata"){
+  load(FileMetadata) 
+  # Tomamos los datos
+  pD1 = pData(metadata)
+  expData = experimentData(metadata)
+  }else{
+    pD1 = read.table(FileMetadata, header = TRUE, sep = "\t", 
+                          fill = TRUE, comment.char = "")
+    FileExp = list.files(path = DirrawData0, pattern = "idf.txt",
+                          full.names = TRUE)
+    expData = NULL
+  }
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+#pD1
+table(pD1$characteristics_ch1.2, pD1$characteristics_ch1.1, 
+      pD1$characteristics_ch1)
+```  
+
+Creamos un objeto con la información fenotípica de interés:
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}   
+# Creamos los factores  
+## Obesidad
+obesity = factor(x = rep("Ob", nrow(pD1)),
+                levels = c("Ob"))
+
+## Diabetes
+diabetes_dict = c("metabolic status: insulin resistant" = "IR",
+                  "metabolic status: insulin sensitive" = "IS") 
+diabetes = factor(x = RX_coind(diabetes_dict, pD1$characteristics_ch1.2),
+                  levels = c("IS", "IR"))
+
+## Grupo
+group = interaction(obesity, diabetes, sep = "_")
+
+## Genero
+gender_dict = c("gender: female" = "F",
+                "gender: male" = "M")
+gender = factor(x = RX_coind(gender_dict, pD1$characteristics_ch1.1),
+                levels = c("M", "F"))
+
+## Tejido
+tissue_dict = c("tissue: subcutaneous adipose" = "SAT",
+                  "tissue: omental adipose" = "VAT")
+tissue = factor(x = RX_coind(tissue_dict, pD1$characteristics_ch1),
+                levels = c("SAT", "VAT"))
+
+## Edad
+ageG = factor(x = rep("Adult", nrow(pD1)),
+                  levels = c("Adult"))
+
+## Batch
+batch = factor(sapply(pD1$relation == "",
+                      function(x) RX_ifelse(x , "B1", "B2")),
+               levels = c("B1", "B2"))
+
+# Almacenamos los datos fenotípicos
+phenoData0 = data.frame(Gender = gender,
+                        Group = group,
+                        Obesity = obesity,
+                        Diabetes = diabetes,
+                        Tissue = tissue,
+                        Patient = "-",
+                        AgeGroup = ageG,
+                        Batch = batch,
+                        BMI = "-",
+                        Age = "-",
+                        pD1) 
+
+# Ordenamos en base al tejido, grupo y genero 
+orden = order(phenoData0$Tissue,
+              phenoData0$Obesity,
+              phenoData0$Diabetes,
+              phenoData0$Gender)
+
+phenoData1 = phenoData0[orden,]
+
+# Pacientes 
+pat_info = sapply(phenoData1$title, function(x) strsplit(x, split = " - ")[[1]][1], 
+                  USE.NAMES = FALSE)
+uniq_pat = unique(pat_info)
+## Tomamos la información unica del titulo
+patient_dict = (as.character(glue("P{seq(length(uniq_pat))}")))
+names(patient_dict) = uniq_pat
+patient = factor(x = RX_coind(patient_dict, pat_info, names = FALSE),
+                 levels = patient_dict)
+phenoData1$Patient = patient
+
+
+# Nombramos las muestras
+samples = factor(glue("S{seq(nrow(pD1))}"),
+                 levels = glue("S{seq(nrow(pD1))}"))
+phenoData1$Batch[c(1,6,7,20,25,26)] = "B2"
+phenoData = data.frame("Sample" = samples,
+                       "Accesion" = phenoData1$geo_accession,
+                       phenoData1,
+                       row.names = samples)
+
+```   
+
+
+### Datos de expresión
+
+
+Listamos la información del estudio.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos los ficheros
+files = list.files(path = DirrawData0)
+CelFiles0 = files[endsWith(files, "CEL.gz") | endsWith(files, "CEL")]
+
+# Tomamos los fichos en el orden deseado
+CelFiles = glue("{phenoData$Accesion}.CEL.gz")
+```
+
+Almacenamos los datos en un Affy batch
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Creamos el objeto
+rawData0 = affy::ReadAffy(celfile.path = DirrawData0,
+                         filenames = CelFiles,
+                         sampleNames = row.names(phenoData),
+                         phenoData = phenoData)
+
+# añadimos los datos del experimento 
+experimentData(rawData0) = expData 
+```
+
+Guardamos los datos de imagen sin procesar.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE} 
+# Guardamos los datos
+probeData = rawData0
+save(probeData, file = glue("{DirRData}/probeData.RData"))
+```  
+
+
+### Expresión  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/probeData.RData"))
+```
+
+
+Convertimos los datos de imagen a un Expression set que contenga la 
+información de expresión.
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la información de expresión por sonda y los guardamos
+rawData = rma(probeData, normalize = FALSE,  background = FALSE)
+save(rawData, file = glue("{DirRData}/rawData.RData"))
+```  
+
+### Anotacion   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/rawData.RData"))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la plataforma de anotación
+cat("La plataforma empleada para la anotación es",
+    annotation(rawData), "\n")
+```  
+
+Cargamos los datos de anotación.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos la base de datos
+anotdb = "hgu133plus2.db"
+pacman::p_load(char = anotdb)
+```
+
+Para anotar, tomaremos la mediana de la expresión de las sondas que corresponden
+a un mismo gen, mientras que si varios genes corresponden con una misma sonda,
+tomaremos el primer identificador de gen.     
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conversion de sondas a genes
+#rm(rawData_anot)
+rawData_anot = RX_probe2gene(rawData,
+                             anotdb = hgu133plus2.db,
+                             multi.from = median)   
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones
+rawData_anot = RX_annot(rawData_anot,
+                        db = org.Hs.eg.db,
+                        fromAnot="ENTREZID",
+                        toAnot = c("ENSEMBL","SYMBOL")) 
+```
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(rawData)} sondas, y tras la anotación nos quedamos
+      con {nrow(rawData_anot)} genes.")
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(rawData_anot, file = glue("{DirRData}/rawData_anot.RData"))
+```    
+
+
+### Normalización  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/probeData.RData"))
+# Tomamos la información de expresión por sonda y los guardamos
+normData = rma(probeData, 
+               normalize=TRUE, background = TRUE)
+save(GnormData, file = glue("{DirRData}/normData.RData"))
+```  
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la información de expresión por sonda y los guardamos
+save(normData, file = glue("{DirRData}/normData.RData"))
+```  
+
+### Correccion del Batch effect  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/normData.RData"))
+```  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}   
+# Usamos ComBat para corregir el batch effect encontrado
+normData2 = normData 
+exprs(normData2) = ComBat(exprs(normData), batch = normData$Batch) 
+``` 
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(normData2, file = glue("{DirRData}/normData2.RData"))
+```  
+
+
+### Anotación    
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/normData2.RData"))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la plataforma de anotación
+cat("La plataforma empleada para la anotación es",
+    annotation(normData2), "\n")
+```  
+
+Cargamos los datos de anotación.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos la base de datos
+anotdb = "hgu133plus2.db"
+pacman::p_load(char = anotdb)
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conversion de sondas a genes
+#rm(normData_anot)
+normData2_anot = RX_probe2gene(normData2,
+                              anotdb = hgu133plus2.db,
+                              multi.from = median)   
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones
+normData2_anot = RX_annot(normData2_anot,
+                         db = org.Hs.eg.db,
+                         fromAnot="ENTREZID",
+                         toAnot = c("ENSEMBL","SYMBOL")) 
+```  
+
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(normData2)} sondas, y tras la anotación nos quedamos
+      con {nrow(normData2_anot)} genes.")
+```  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(normData2_anot, file = glue("{DirRData}/normData2_anot.RData"))
+```   
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData2_anot.RData"))
+finalData = normData2_anot
+save(finalData, file = glue("{DirRData}/finalData.RData"))
+```  
+
+
+***   
+
+
+## GSE29718
+
+&nbsp;  
+
+Estudio transcriptómico mediante arrays empleando la plataforma [HuGene-1_0-st]
+Affymetrix Human Gene 1.0 ST Array [transcript (gene) version] (GPL6244).  
+
+En un intento de elucidad los mecanismos genéticos que están detrás de la
+obesidad,y que posteriormente podrías conducir al desarrollo de diabetes de
+tipo 2, este estudio pretende estudiar las diferencias entre niños obesos, con
+el objetivo de minimizar los efectos de la pubertad.  
+Para ello se han tomado 15 muestras de tejido adiposo subcutáneo abdominal (SAT)
+y 5 de visceral (VAT) pertenecientes a niños con edades menores de 9 años.   
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Parametros
+Acc = "GSE29718"
+DirrawData0 = paste(DirData, Acc, "01RawData", sep = "/")
+DirRData = paste(DirData, Acc, "02RData", sep = "/")
+# Creamos el directorio para almacenar los datos
+system(glue("mkdir {DirRData}"))
+
+```
+
+
+### Datos fenotípicos
+
+Cargamos la información del experimento:  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+FileMetadata = list.files(path = DirrawData0, pattern = "((R|r)(D|d)ata)|rda",
+                          full.names = TRUE)
+type = "Rdata"
+# Cargamos los datos
+if(type == "Rdata"){
+  load(FileMetadata) 
+  # Tomamos los datos
+  pD1 = pData(metadata)
+  expData = experimentData(metadata)
+  }else{
+    pD1 = read.table(FileMetadata, header = TRUE, sep = "\t", 
+                          fill = TRUE, comment.char = "")
+    FileExp = list.files(path = DirrawData0, pattern = "idf.txt",
+                          full.names = TRUE)
+    expData = NULL
+  }
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+pD1
+table(pD1$characteristics_ch1.2, pD1$characteristics_ch1.1,
+      pD1$characteristics_ch1)
+```  
+
+
+Creamos un objeto con la información fenotípica de interés:
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}   
+# Creamos los factores  
+## Obesidad
+obesity_dict = c("weight: lean" = "Np",
+                  "weight: obese" = "Ob")
+obesity = factor(x = RX_coind(obesity_dict, pD1$characteristics_ch1.2),
+                  levels = c("Np", "Ob"))
+
+## Diabetes 
+diabetes = factor(x = rep("IS", nrow(pD1)),
+                  levels = c("IS"))
+
+## Grupo
+group = interaction(obesity, diabetes, sep = "_")
+
+## Genero
+gender_dict = c("gender: female" = "F",
+                "gender: male" = "M")
+gender = factor(x = RX_coind(gender_dict, pD1$characteristics_ch1.1),
+                levels = c("M", "F"))
+
+## Tejido
+tissue_dict = c("tissue: subcutaneous adipose tissue" = "SAT",
+                "tissue: visceral adipose tissue" = "VAT")
+tissue = factor(x = RX_coind(tissue_dict, pD1$characteristics_ch1),
+                levels = c("SAT", "VAT"))
+
+## Edad
+ageG = factor(x = rep("Non adult", nrow(pD1)),
+             levels = c("Non adult"))  
+
+## Batch
+batch = factor(sapply(pD1$characteristics_ch1.3 == "array batch: 1",
+                      function(x) RX_ifelse(x , "B1", "B2")),
+               levels = c("B1", "B2"))
+
+# Almacenamos los datos fenotípicos
+phenoData0 = data.frame(Gender = gender,
+                        Group = group,
+                        Obesity = obesity,
+                        Diabetes = diabetes,
+                        Tissue = tissue,
+                        Patient = "-",
+                        AgeGroup = ageG,
+                        Batch = batch,
+                        BMI = "-",
+                        Age = "-",
+                        pD1) 
+
+# Ordenamos en base al tejido, grupo y genero 
+orden = order(phenoData0$Tissue,
+              phenoData0$Obesity,
+              phenoData0$Diabetes,
+              phenoData0$Gender)
+
+phenoData1 = phenoData0[orden,]
+
+## Paciente ( todos son distintos)
+patient = factor(glue("P{seq(nrow(pD1))}"),
+                 levels = glue("P{seq(nrow(pD1))}"))
+phenoData1$Patient = patient
+
+# Nombramos las muestras
+samples = factor(glue("S{seq(nrow(pD1))}"),
+                 levels = glue("S{seq(nrow(pD1))}"))
+phenoData = data.frame("Sample" = samples,
+                       "Accesion" = phenoData1$geo_accession,
+                       phenoData1,
+                       row.names = samples)
+
+```   
+
+
+### Datos de expresión  
+
+Listamos la información del estudio.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE} 
+files = list.files(path = DirrawData0)
+CelFiles0 = files[endsWith(files, "CEL.gz") | endsWith(files, "CEL")]
+
+# Tomamos los fichos en el orden deseado
+acc = sapply(CelFiles0, function(x) strsplit(x, split = "_")[[1]][1], 
+             USE.NAMES = FALSE)
+CelFiles = CelFiles0[match(phenoData$Accesion,acc)] 
+```
+
+Almacenamos los datos en un Affy batch
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Creamos el objeto
+rawData0 = affy::ReadAffy(celfile.path = DirrawData0,
+                         filenames = CelFiles,
+                         sampleNames = row.names(phenoData),
+                         phenoData = phenoData)
+
+# añadimos los datos del experimento 
+experimentData(rawData0) = expData 
+```
+
+Guardamos los datos de imagen sin procesar.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE} 
+# Guardamos los datos
+probeData = rawData0
+save(probeData, file = glue("{DirRData}/probeData.RData"))
+```  
+
+
+### Expresión  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/probeData.RData"))
+```
+
+
+Convertimos los datos de imagen a un Expression set que contenga la información de 
+expresión.
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la información de expresión por sonda y los guardamos
+rawData = rma(probeData, normalize = FALSE, background = FALSE)
+save(rawData, file = glue("{DirRData}/rawData.RData"))
+```  
+
+### Anotacion   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/rawData.RData"))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la plataforma de anotación
+cat("La plataforma empleada para la anotación es",
+    annotation(rawData), "\n")
+```  
+
+
+Cargamos los datos de anotación.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos la base de datos
+anotdb = "hugene10sttranscriptcluster.db" 
+pacman::p_load(char = anotdb)
+```
+
+Para anotar, tomaremos la mediana de la expresión de las sondas que corresponden
+a un mismo gen, mientras que si varios genes corresponden con una misma sonda,
+tomaremos el primer identificador de gen.   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conversion de sondas a genes
+#rm(rawData_anot)
+rawData_anot = RX_probe2gene(rawData,
+                             anotdb = hugene10sttranscriptcluster.db,
+                             multi.from = median)   
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones
+rawData_anot = RX_annot(rawData_anot,
+                        db = org.Hs.eg.db,
+                        fromAnot="ENTREZID",
+                        toAnot = c("ENSEMBL","SYMBOL")) 
+```
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(rawData)} sondas, y tras la anotación nos quedamos
+      con {nrow(rawData_anot)} genes.")
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(rawData_anot, file = glue("{DirRData}/rawData_anot.RData"))
+```    
+
+
+### Normalización  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/probeData.RData"))
+```
+
+Llevaremos a cabo una normalización por cuartiles y una corrección de fondo 
+usando RMA. 
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la información de expresión por sonda y los guardamos
+normData = rma(probeData, normalize=TRUE, background = TRUE)
+save(normData, file = glue("{DirRData}/normData.RData"))
+```  
+
+### Correccion del Batch effect  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/normData.RData"))
+```  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}   
+# Usamos ComBat para corregir el batch effect encontrado
+normData2 = normData 
+exprs(normData2) = ComBat(exprs(normData), batch = normData$Batch) 
+``` 
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(normData2, file = glue("{DirRData}/normData2.RData"))
+```  
+
+
+### Anotación    
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/normData2.RData"))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la plataforma de anotación
+cat("La plataforma empleada para la anotación es",
+    annotation(normData2), "\n")
+```  
+
+Cargamos los datos de anotación.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos la base de datos
+anotdb = "hugene10sttranscriptcluster.db"
+pacman::p_load(char = anotdb)
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conversion de sondas a genes
+#rm(normData_anot)
+normData2_anot = RX_probe2gene(normData2,
+                              anotdb = hugene10sttranscriptcluster.db,
+                              multi.from = median)   
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones
+normData2_anot = RX_annot(normData2_anot,
+                         db = org.Hs.eg.db,
+                         fromAnot="ENTREZID",
+                         toAnot = c("ENSEMBL","SYMBOL")) 
+```  
+
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(normData2)} sondas, y tras la anotación nos quedamos
+      con {nrow(normData2_anot)} genes.")
+```  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(normData2_anot, file = glue("{DirRData}/normData2_anot.RData"))
+```   
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión 
+diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData2_anot.RData"))
+finalData = normData2_anot
+save(finalData, file = glue("{DirRData}/finalData.RData"))
+```  
+
+
+***   
+
+
+## GSE64567  
+
+&nbsp;  
+
+Estudio transcriptómico mediante arrays empleando la plataforma Illumina
+HumanHT-12 V4.0 expression beadchip (GPL10558).
+
+En un intento de elucidar los cambios a nivel transcripcional que conducen al
+desarrollo de obesidad y la posible futura asociación entre esta y la diabetes
+de tipo 2, en este estudio se tomaron muestras provenientes del tejido
+subcutáneo abdominal de 64 sujetos adultos no relacionados, no diabéticos y con
+diferentes indices de masa corporal (BMI).   
+Partiendo de los datos recopilados en este estudio, basándonos en el BMI, y
+tomando como límite 30>= podes separar los sujetos en dos grupos: obesos (n=35)
+y control (n=29).
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Parametros
+Acc = "GSE64567"
+DirrawData0 = paste(DirData, Acc, "01RawData", sep = "/")
+DirRData = paste(DirData, Acc, "02RData", sep = "/")
+# Creamos el directorio para almacenar los datos
+system(glue("mkdir {DirRData}"))
+
+```
+
+### Datos fenotípicos
+
+Cargamos la información del experimento:  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+FileMetadata = list.files(path = DirrawData0, pattern = "((R|r)(D|d)ata)|rda",
+                          full.names = TRUE)
+type = "Rdata"
+# Cargamos los datos
+if(type == "Rdata"){
+  load(FileMetadata) 
+  # Tomamos los datos
+  pD1 = pData(metadata)
+  expData = experimentData(metadata)
+  }else{
+    pD1 = read.table(FileMetadata, header = TRUE, sep = "\t", 
+                          fill = TRUE, comment.char = "")
+    FileExp = list.files(path = DirrawData0, pattern = "idf.txt",
+                          full.names = TRUE)
+    expData = NULL
+  }
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+table(pD1$characteristics_ch1.4, pD1$"gender:ch1", pD1$characteristics_ch1)
+```  
+
+
+
+Creamos un objeto con la información fenotípica de interés:
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}   
+# Creamos los factores  
+## Obesidad 
+## Obesidad: tomamos la obesidad en función del BMI
+BMI0 = pD1$characteristics_ch1.4
+BMI = as.numeric(sapply(BMI0, function(x) strsplit(x, ": ")[[1]][2],
+                 simplify = TRUE, USE.NAMES = FALSE))
+obesity = factor(x = (sapply(BMI, function(x) RX_ifelse(x >= 30, "Ob", "Np"), 
+                  simplify = TRUE, USE.NAMES = FALSE)),
+                 levels = c("Np", "Ob"))
+
+## Diabetes  
+diabetes = factor(x = rep("IS", nrow(pD1)),
+                  levels = c("IS"))
+## Grupo
+group = interaction(obesity, diabetes, sep = "_")
+group = factor(group, levels= c("Np_IS", "Np_IR", "Ob_IS", "Ob_IR"))
+
+## Genero
+gender = factor(pD1$"gender:ch1",
+                levels = c("M", "F"))
+
+## Tejido 
+tissue = factor(x = rep("SAT", nrow(pD1)),
+                levels = c("SAT"))
+
+## Edad 
+age = as.numeric(str_split_i(pD1$"characteristics_ch1.3",
+                             pattern = ": ", i=2))
+ageG = factor(x = (sapply(age, function(x) RX_ifelse(x >= 18, "Adult", 
+                                                    "Non adults"), 
+                  simplify = TRUE, USE.NAMES = FALSE)),
+                  levels = c("Adult"))
+
+# BMI
+bmi = as.numeric(str_split_i(pD1$"characteristics_ch1.4",
+                             pattern = ": ", i=2))
+  
+
+# Almacenamos los datos fenotípicos
+phenoData0 = data.frame(Gender = gender,
+                        Group = group,
+                        Obesity = obesity,
+                        Diabetes = diabetes,
+                        Tissue = tissue,
+                        Patient = "-",
+                        AgeGroup = ageG,
+                        Batch = "-",
+                        BMI = bmi,
+                        Age = age,
+                        pD1)
+
+# Ordenamos en base al tejido, grupo y genero 
+orden = order(phenoData0$Tissue,
+              phenoData0$Obesity,
+              phenoData0$Diabetes,
+              phenoData0$Gender)
+
+phenoData1 = phenoData0[orden,] 
+
+## Paciente (tomamos los que comparten la primera parte del titulo)
+patient = factor(glue("P{seq(nrow(pD1))}"),
+                 levels = glue("P{seq(nrow(pD1))}"))
+phenoData1$Patient = patient 
+
+# Nombramos las muestras
+samples = factor(glue("S{seq(nrow(pD1))}"),
+                 levels = glue("S{seq(nrow(pD1))}"))
+phenoData = data.frame("Sample" = samples,
+                       "Accesion" = phenoData1$geo_accession,
+                       phenoData1,
+                       row.names = samples)
+table(phenoData$Gender, phenoData$Group )
+```   
+
+### Datos de expresión   
+
+Listamos la información del estudio.
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos los ficheros
+files = list.files(path = DirrawData0, full.names = TRUE) 
+files
+```  
+
+Tenemos la matriz de conteos, creamos un ExpressionSet.
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conteos no nomalizados de Illumina
+counts_file = glue("{files[str_detect(files, pattern = 'non-normalized')]}")
+
+# Leemos el fichero con el paquete lumi 
+rawData0 = lumiR.batch(counts_file)
+
+# Tomamos la coincidencia entre los nombres asignados de las muestras
+ind = match(phenoData$title, sampleNames(rawData0))
+
+# Reordenamos el ExpressionSet
+rawData0 = rawData0[,ind]
+# Asignamos los nombres
+sampleNames(rawData0) = phenoData$Sample
+
+#Añadimos la información fenotípica:
+pData(rawData0) = phenoData
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE} 
+# Guardamos los datos
+rawData = rawData0
+save(rawData, file = glue("{DirRData}/rawData.RData"))
+```    
+
+### Anotacion   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/rawData.RData"))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la plataforma de anotación
+cat("La plataforma empleada para la anotación es",
+    annotation(rawData), "\n")
+```  
+
+Cargamos los datos de anotación de Illumina.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos la base de datos
+anotdb = "illuminaHumanv4.db"
+pacman::p_load(char = anotdb)
+```
+
+Para anotar, tomaremos la mediana de la expresión de las sondas que corresponden
+a un mismo gen, mientras que si varios genes corresponden con una misma sonda,
+tomaremos el primer identificador de gen.   
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conversion de sondas a genes
+rawData_anot = RX_probe2gene(rawData,
+                             anotdb = illuminaHumanv4.db,
+                             multi.from = median)   
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones
+rawData_anot = RX_annot(rawData_anot,
+                        db = org.Hs.eg.db,
+                        fromAnot="ENTREZID",
+                        toAnot = c("ENSEMBL","SYMBOL")) 
+```
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(rawData)} sondas, y tras la anotación nos quedamos
+      con {nrow(rawData_anot)} genes.")
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(rawData_anot, file = glue("{DirRData}/rawData_anot.RData"))
+```     
+
+
+### Normalización  
+
+En este caso tomamos los datos ya normalizados, proporcionado por lo autores.   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/rawData.RData")) 
+```
+
+
+
+Llevaremos a cabo una normalización por cuartiles y una corrección de fondo usando lumi.   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+rawData2 = lumi::lumiB(rawData, method = "bgAdjust.affy", verbose = TRUE)
+normData = lumiN(rawData2, method = "quantile")
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la información de expresión por sonda y los guardamos
+save(normData, file = glue("{DirRData}/normData.RData"))
+```  
+
+
+### Anotación    
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/normData.RData"))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la plataforma de anotación
+cat("La plataforma empleada para la anotación es",
+    annotation(normData), "\n")
+```  
+
+Cargamos los datos de anotación de Illumina.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos la base de datos
+anotdb = "illuminaHumanv4.db"
+pacman::p_load(char = anotdb)
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conversion de sondas a genes
+#rm(normData_anot) 
+normData_anot = RX_probe2gene(normData,
+                              anotdb = illuminaHumanv4.db,
+                              multi.from = median)   
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones
+normData_anot = RX_annot(normData_anot,
+                         db = org.Hs.eg.db,
+                         fromAnot="ENTREZID",
+                         toAnot = c("ENSEMBL","SYMBOL")) 
+```  
+
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(normData)} sondas, y tras la anotación nos quedamos
+      con {nrow(normData_anot)} genes.")
+```  
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(normData_anot, file = glue("{DirRData}/normData_anot.RData"))
+```    
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData_anot.RData"))
+finalData = normData_anot[,which(normData_anot$Group != "Np_IR")]
+lev = levels(finalData$Group)[which( levels(normData_anot$Group) %in% 
+                                       unique(finalData$Group))]
+finalData$Group = factor(finalData$Group, levels = lev)
+save(finalData, file = glue("{DirRData}/finalData.RData"))
+```  
+
+
+***   
+
+## GSE92405  
+
+&nbsp;   
+
+Estudio transcriptómico mediante arrays empleando la plataforma Affymetrix
+Human Genome U133 Plus 2.0 Array [CDF: Brainarray HGU133Plus2_Hs_ENTREZG_v18].  
+
+Dicho estudio pretende estudiar los perfiles transcriptómicos globales de
+parejas de gemelos con índices de masa corporal discordantes (más de 3kg/m2). 
+Estos perfiles fueron analizados partiendo de tejido adiposos subcutáneo 
+abdominal (SAT).    
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Parametros
+Acc = "GSE92405"
+DirrawData0 = paste(DirData, Acc, "01RawData", sep = "/")
+DirRData = paste(DirData, Acc, "02RData", sep = "/")
+# Creamos el directorio para almacenar los datos
+system(glue("mkdir {DirRData}"))
+
+```
+
+
+### Datos fenotípicos
+
+Cargamos la información del experimento:  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+FileMetadata = list.files(path = DirrawData0, pattern = "((R|r)(D|d)ata)|rda",
+                          full.names = TRUE)
+type = "Rdata"
+# Cargamos los datos
+if(type == "Rdata"){
+  load(FileMetadata) 
+  # Tomamos los datos
+  pD1 = pData(metadata)
+  expData = experimentData(metadata)
+  }else{
+    pD1 = read.table(FileMetadata, header = TRUE, sep = "\t", 
+                          fill = TRUE, comment.char = "")
+    FileExp = list.files(path = DirrawData0, pattern = "idf.txt",
+                          full.names = TRUE)
+    expData = NULL
+  }
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+#pD1
+table(pD1$"bmi category:ch1", pD1$"characteristics_ch1.1")
+```  
+
+
+Creamos un objeto con la información fenotípica de interés:
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE} 
+# Creamos los factores 
+## Obesidad
+obesity_dict = c("lean" = "Np",
+                  "heavy" = "Ob")
+obesity = factor(x = RX_coind(obesity_dict, pD1$"bmi category:ch1"),
+                levels = c("Np", "Ob"))
+
+## Diabetes
+diabetes = factor(x = rep("IS", nrow(pD1)),
+                  levels = c("IS"))
+
+## Grupo
+group = interaction(obesity, diabetes, sep = "_")
+
+## Genero
+gender_dict = c("gender: female" = "F",
+                "gender: male" = "M") 
+gender = factor(x = RX_coind(gender_dict, pD1$"characteristics_ch1.1"),
+                levels = c("M", "F"))
+
+## Tejido
+tissue = factor(x = rep("SAT", nrow(pD1)),
+                levels = "SAT")
+
+## Edad 
+age = pD1$"age:ch1"
+ageG = factor(x = (sapply(age, function(x) RX_ifelse(x >= 18, "Adult", 
+                                                    "Non adults"), 
+                  simplify = TRUE, USE.NAMES = FALSE)),
+                  levels = c("Adult"))
+  
+## Batch
+batch = str_split_i(str_split_i(pD1$"individual:ch1", pattern = "Twin", i=1),
+                    pattern = "Family", i=2)
+ord = order(as.numeric(batch))
+batch = glue('B{batch}')
+batch = factor(batch,
+               levels = unique(batch[ord]))
+
+#Almacenamos los datos fenotípicos
+phenoData0 = data.frame(Gender = gender,
+                        Group = group,
+                        Obesity = obesity,
+                        Diabetes = diabetes,
+                        Tissue = tissue,
+                        Patient = "-",
+                        AgeGroup = ageG,
+                        Batch = batch,
+                        BMI = "-",
+                        Age = age,
+                        pD1) 
+
+# Ordenamos en base al tejido, grupo y genero 
+orden = order(phenoData0$Tissue,
+              phenoData0$Obesity,
+              phenoData0$Diabetes,
+              phenoData0$Gender)
+
+phenoData1 = phenoData0[orden,]
+
+
+## Paciente ( todos son distintos)
+patient = factor(glue("P{seq(nrow(pD1))}"),
+                 levels = glue("P{seq(nrow(pD1))}"))
+phenoData1$Patient = patient
+
+# Nombramos las muestras
+samples = factor(glue("S{seq(nrow(pD1))}"),
+                 levels = glue("S{seq(nrow(pD1))}"))
+
+phenoData = data.frame("Sample" = samples,
+                       "Accesion" = phenoData1$geo_accession,
+                       phenoData1,
+                       row.names = samples)
+
+```   
+
+
+### Datos de expresión
+
+
+Listamos la información del estudio.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos los ficheros
+files = list.files(path = DirrawData0)
+CelFiles0 = files[endsWith(files, "CEL.gz") | endsWith(files, "CEL")]
+
+# Tomamos los fichos en el orden deseado
+CelFiles = phenoData$Array.Data.File
+```
+
+Almacenamos los datos en un Affy batch
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Creamos el objeto
+rawData0 = affy::ReadAffy(celfile.path = DirrawData0,
+                          filenames = CelFiles,
+                          sampleNames = row.names(phenoData),
+                          phenoData = phenoData)
+```
+
+Guardamos los datos de imagen sin procesar.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE} 
+# Guardamos los datos
+probeData = rawData0
+save(probeData, file = glue("{DirRData}/probeData.RData"))
+```  
+
+
+### Expresión  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/probeData.RData"))
+```
+
+
+Convertimos los datos de imagen a un Expression set que contenga la información de 
+expresión.
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la información de expresión por sonda y los guardamos
+rawData = rma(probeData, normalize = FALSE,  background = FALSE)
+save(rawData, file = glue("{DirRData}/rawData.RData"))
+```  
+
+### Anotacion   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/rawData.RData"))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la plataforma de anotación
+cat("La plataforma empleada para la anotación es",
+    annotation(rawData), "\n")
+```  
+
+Cargamos los datos de anotación.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos la base de datos
+anotdb = "hgu133plus2.db"
+pacman::p_load(char = anotdb)
+```
+
+Para anotar, tomaremos la mediana de la expresión de las sondas que corresponden
+a un mismo gen, mientras que si varios genes corresponden con una misma sonda,
+tomaremos el primer identificador de gen.   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conversion de sondas a genes
+#rm(rawData_anot)
+rawData_anot = RX_probe2gene(rawData,
+                             anotdb = hgu133plus2.db,
+                             multi.from = median)   
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones
+rawData_anot = RX_annot(rawData_anot,
+                        db = org.Hs.eg.db,
+                        fromAnot="ENTREZID",
+                        toAnot = c("ENSEMBL","SYMBOL")) 
+```
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(rawData)} sondas, y tras la anotación nos quedamos
+      con {nrow(rawData_anot)} genes.")
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(rawData_anot, file = glue("{DirRData}/rawData_anot.RData"))
+```    
+
+
+### Normalización  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/probeData.RData"))
+```
+
+Llevaremos a cabo una normalización por cuartiles y una corrección de fondo 
+usando RMA. 
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la información de expresión por sonda y los guardamos
+normData = rma(probeData,  normalize=TRUE, background = TRUE)
+save(normData, file = glue("{DirRData}/normData.RData"))
+```  
+
+### Anotación    
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/normData.RData"))
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Tomamos la plataforma de anotación
+cat("La plataforma empleada para la anotación es",
+    annotation(normData), "\n")
+```  
+
+Cargamos los datos de anotación.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos la base de datos
+anotdb = "hgu133plus2.db"
+pacman::p_load(char = anotdb)
+```
+
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Conversion de sondas a genes
+#rm(normData_anot)
+normData_anot = RX_probe2gene(normData,
+                              anotdb = hgu133plus2.db,
+                              multi.from = median)   
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones
+normData_anot = RX_annot(normData_anot,
+                         db = org.Hs.eg.db,
+                         fromAnot="ENTREZID",
+                         toAnot = c("ENSEMBL","SYMBOL")) 
+```  
+
+
+¿Cómo han cambiado nuestros datos?  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Partiamos de {nrow(normData)} sondas, y tras la anotación nos quedamos
+      con {nrow(normData_anot)} genes.")
+```  
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(normData_anot, file = glue("{DirRData}/normData_anot.RData"))
+```   
+
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/normData_anot.RData"))
+finalData = normData_anot
+save(finalData, file = glue("{DirRData}/finalData.RData"))
+```  
+
+***   
+
+## GSE141432  
+
+&nbsp;   
+
+Estudio transcriptómico mediante secuenciación masiva.  
+
+En este caso se estudia el desarrollo de diabetes de tipo 2 en relación con
+la obesidad, para ello se han tomado muestras de tejido adiposo subcutáneo 
+abdominal de tres grupos de pacientes, sujetos sanos sin obesidad
+(controles, n=9), sujetos sanos obesos (n=8) y sujetos obesos con diabetes
+de tipo 2 (n=8).    
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Parametros
+Acc = "GSE141432"
+DirrawData0 = paste(DirData, Acc, "01RawData", sep = "/")
+DirRData = paste(DirData, Acc, "02RData", sep = "/")
+# Creamos el directorio para almacenar los datos
+system(glue("mkdir {DirRData}"))
+
+```
+
+
+### Datos fenotípicos
+
+Cargamos la información del experimento:  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+FileMetadata = list.files(path = DirrawData0, pattern = "((R|r)(D|d)ata)|rda",
+                          full.names = TRUE)
+type = "Rdata"
+# Cargamos los datos
+if(type == "Rdata"){
+  load(FileMetadata) 
+  # Tomamos los datos
+  pD1 = pData(metadata)
+  expData = experimentData(metadata)
+  }else{
+    pD1 = read.table(FileMetadata, header = TRUE, sep = "\t", 
+                          fill = TRUE, comment.char = "")
+    FileExp = list.files(path = DirrawData0, pattern = "idf.txt",
+                          full.names = TRUE)
+    expData = NULL
+  }
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+pD1
+table(pD1$characteristics_ch1.1, pD1$characteristics_ch1.2, 
+      pD1$characteristics_ch1)
+```  
+
+
+Creamos un objeto con la información fenotípica de interés:
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}   
+# Creamos los factores  
+## Obesidad 
+obesity_dict = c("condition: Lean" = "Np",
+                 "condition: Obese NGT" = "Ob",
+                 "condition: Obese T2D" = "Ob")
+obesity = factor(x = RX_coind(obesity_dict, pD1$characteristics_ch1.1),
+                  levels = c("Np", "Ob"))
+
+## Diabetes 
+diabetes_dict = c("condition: Lean" = "IS",
+                  "condition: Obese NGT" = "IS",
+                  "condition: Obese T2D" = "IR")
+diabetes = factor(x = RX_coind(diabetes_dict, pD1$characteristics_ch1.1),
+                  levels = c("IS", "IR"))
+
+## Grupo
+group = (interaction(obesity, diabetes, sep = "_"))
+group = factor(group, levels= c("Np_IS", "Ob_IS", "Ob_IR"))
+
+## Genero
+gender_dict = c("Sex: F" = "F",
+                "Sex: M" = "M")
+gender = factor(x = RX_coind(gender_dict, pD1$characteristics_ch1.2),
+                levels = c("M", "F"))
+
+## Tejido
+tissue = factor(x = rep("SAT", nrow(pD1)),
+                levels = "SAT")
+
+## Edad
+ageG = factor(x = rep("Adult", nrow(pD1)),
+             levels = c("Adult"))
+
+# Almacenamos los datos fenotípicos
+phenoData0 = data.frame(Gender = gender,
+                        Group = group,
+                        Obesity = obesity,
+                        Diabetes = diabetes,
+                        Tissue = tissue,
+                        Patient = "-",
+                        AgeGroup = ageG,
+                        Batch = "-",
+                        BMI = "-",
+                        Age = "-",
+                        pD1)
+
+# Ordenamos en base al tejido, grupo y genero 
+orden = order(phenoData0$Tissue,
+              phenoData0$Obesity,
+              phenoData0$Diabetes,
+              phenoData0$Gender)
+
+phenoData1 = phenoData0[orden,]
+
+#Añadimos info de pacientes ( todos son distintos)
+patient = factor(glue("P{seq(nrow(pD1))}"),
+                 levels = glue("P{seq(nrow(pD1))}"))
+phenoData1$Patient = patient
+
+# Nombramos las muestras
+samples = factor(glue("S{seq(nrow(pD1))}"),
+                 levels = glue("S{seq(nrow(pD1))}"))
+phenoData = data.frame("Sample" = samples,
+                       "Accesion" = phenoData1$geo_accession,
+                       phenoData1,
+                       row.names = samples)
+```   
+
+
+### Datos de expresión  
+
+Listamos la información del estudio.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+files = list.files(path = DirrawData0)
+files 
+```
+
+Tenemos la matriz de conteos, creamos un ExpressionSet.
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Matriz de conteos
+counts_file = glue("{DirrawData0}/{files[!endsWith(files, 'RData')]}")
+counts_info0 = read.csv(counts_file, header = TRUE, sep = "\t", row.names=1)
+
+# Reordenamos la matriz para que conicida con los datos fenotipicos
+ind = match(phenoData$description.1, colnames(counts_info0))
+counts_info = counts_info0[,ind]
+colnames(counts_info) = phenoData$Sample
+```
+
+
+Creamos el ExpressionSet
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE} 
+#Creamos y añadimos la información al ExpressionSet
+rawData = SummarizedExperiment(
+  assays = SimpleList(counts = as.matrix(counts_info)),
+  metadata = list(experimentData(metadata)),
+  colData = phenoData,
+  rowData = data.frame("ENSEMBL" = rownames(counts_info))
+)
+```  
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos
+save(rawData, file = glue("{DirRData}/rawData.RData"))
+```
+
+
+### Anotacion   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/rawData.RData"))
+```   
+
+
+En este caso partimos de la anotación de genes de Ensembl, 
+añadimos los Entrezid y Symbol. 
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones 
+library(org.Hs.eg.db)
+rawData_anot = RX_annot(rawData,
+                        db = org.Hs.eg.db,
+                        fromAnot="ENSEMBL",
+                        toAnot = c("ENTREZID","SYMBOL"))
+```
+
+Tomamos los identificadores de ENTREZID como nombres, pero antes eliminamos 
+repeticiones. 
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Nos quedamos con los identificadores unicos no nulos
+rawData_anot = rawData_anot[match(unique(
+  rowData(rawData_anot)[- which(is.na(rowData(rawData_anot)[,"ENTREZID"])),
+                        "ENTREZID"]), 
+  rowData(rawData_anot)[,"ENTREZID"])]
+# Los asignamos como nombres
+rownames(rawData_anot) = rowData(rawData_anot)[,"ENTREZID"]
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Tenemos {nrow(rawData)} genes anotados,
+     de los cuales {nrow(rawData_anot)} únicos.")
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(rawData_anot, file = glue("{DirRData}/rawData_anot.RData"))
+```      
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión
+diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/rawData_anot.RData"))
+finalData = rawData_anot
+save(finalData, file = glue("{DirRData}/finalData.RData")) 
+```   
+
+***    
+
+## GSE205668  
+
+&nbsp;   
+
+Estudio transcriptómico mediante secuenciación masiva.   
+En este estudio se analizan los patrones de expresión diferencial entre la
+obesidad y el peso normal, para ello se tomaron muestras de SAT de 61 sujetos
+con edades comprendidas entre 0 y 18 años. Incluyendo muestras control (n=35)
+y de obesidad (n=26).   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Parametros
+Acc = "GSE205668"
+DirrawData0 = paste(DirData, Acc, "01RawData", sep = "/")
+DirRData = paste(DirData, Acc, "02RData", sep = "/")
+# Creamos el directorio para almacenar los datos
+system(glue("mkdir {DirRData}"))
+
+```
+
+
+### Datos fenotípicos
+
+Cargamos la información del experimento:  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+FileMetadata = list.files(path = DirrawData0, pattern = "((R|r)(D|d)ata)|rda",
+                          full.names = TRUE)
+type = "Rdata"
+# Cargamos los datos
+if(type == "Rdata"){
+  load(FileMetadata) 
+  # Tomamos los datos
+  pD1 = pData(metadata)
+  expData = experimentData(metadata)
+  }else{
+    pD1 = read.table(FileMetadata, header = TRUE, sep = "\t", 
+                          fill = TRUE, comment.char = "")
+    FileExp = list.files(path = DirrawData0, pattern = "idf.txt",
+                          full.names = TRUE)
+    expData = NULL
+  }
+```
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+pD1
+table(pD1$characteristics_ch1.2, pD1$characteristics_ch1.1,  
+      pD1$characteristics_ch1)
+```  
+
+
+Creamos un objeto con la información fenotípica de interés:
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}   
+# Creamos los factores  
+## Obesidad 
+obesity_dict = c("disease state: normal_weight" = "Np",
+                 "disease state: obese" = "Ob")
+obesity = factor(x = RX_coind(obesity_dict, pD1$characteristics_ch1.2),
+                  levels = c("Np", "Ob"))
+
+## Diabetes  
+diabetes = factor(x = rep("IS", nrow(pD1)),
+                  levels = c("IS"))
+
+## Grupo
+group = interaction(obesity, diabetes, sep = "_")
+
+## Genero
+gender_dict = c("Sex: female" = "F",
+                "Sex: male" = "M")
+gender = factor(x = RX_coind(gender_dict, pD1$characteristics_ch1.1),
+                levels = c("M", "F"))
+
+## Tejido
+tissue = factor(x = rep("SAT", nrow(pD1)),
+                levels = "SAT")
+
+## Edad 
+age = as.numeric(str_split_i(pD1$"characteristics_ch1.3",
+                             pattern = ": ", i=2))
+ageG = factor(x = (sapply(age, function(x) RX_ifelse(x >= 18, "Adult", 
+                                                   "Non adult"), 
+                  simplify = TRUE, USE.NAMES = FALSE)),
+                  levels = c("Adult", "Non adult"))
+  
+
+# Almacenamos los datos fenotípicos
+phenoData0 = data.frame(Gender = gender,
+                        Group = group,
+                        Obesity = obesity,
+                        Diabetes = diabetes,
+                        Tissue = tissue,
+                        Patient = "-",
+                        AgeGroup = ageG,
+                        Batch = "-",
+                        BMI = "-",
+                        Age = age,
+                        pD1) 
+
+# Ordenamos en base al tejido, grupo y genero 
+orden = order(phenoData0$Tissue,
+              phenoData0$Obesity,
+              phenoData0$Diabetes,
+              phenoData0$Gender)
+
+phenoData1 = phenoData0[orden,]
+
+#Añadimos info de pacientes ( todos son distintos)
+patient = factor(glue("P{seq(nrow(pD1))}"),
+                 levels = glue("P{seq(nrow(pD1))}"))
+phenoData1$Patient = patient
+
+# Nombramos las muestras
+samples = factor(glue("S{seq(nrow(pD1))}"),
+                 levels = glue("S{seq(nrow(pD1))}"))
+phenoData = data.frame("Sample" = samples,
+                       "Accesion" = phenoData1$geo_accession,
+                       phenoData1,
+                       row.names = samples)
+```   
+
+
+### Datos de expresión  
+
+Listamos la información del estudio.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+files = list.files(path = DirrawData0)
+files 
+```
+
+Tenemos la matriz de conteos, creamos un ExpressionSet.
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Matriz de conteos
+counts_file = glue("{DirrawData0}/{files[!endsWith(files, 'RData')]}")
+counts_info0 = read.csv(counts_file, header = TRUE, sep = "\t",
+                        row.names=1, check.names = FALSE)
+
+# Tomamos la coincidencia entre los titulos y nombres de las columas
+tit = sapply(phenoData$title, function(x) strsplit(x, split = "*(e|t)_")[[1]][2])
+
+# Reordenamos la matriz para que conicida con los datos fenotipicos
+ind = match(tit, colnames(counts_info0))
+counts_info = counts_info0[,ind]
+colnames(counts_info) = phenoData$Sample
+
+# Los nombres de los genes incluyen números, nos quedamos con los identificadores
+counts_info = as.matrix(counts_info)
+rownames(counts_info) = sapply(rownames(counts_info), 
+                               function(x) strsplit(x, split = ".",
+                                                    fixed = TRUE)[[1]][1],
+                               USE.NAMES = FALSE ) 
+
+```
+
+
+Creamos el ExpressionSet
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE} 
+#Creamos y añadimos la información al ExpressionSet
+rawData = SummarizedExperiment(
+  assays = SimpleList(counts = as.matrix(counts_info)),
+  metadata = list(experimentData(metadata)),
+  colData = phenoData,
+  rowData = data.frame("ENSEMBL" = rownames(counts_info))
+)
+
+```  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos
+save(rawData, file = glue("{DirRData}/rawData.RData"))
+```  
+
+
+### Anotacion   
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Cargamos los datos
+load(glue("{DirRData}/rawData.RData"))
+```
+
+
+En este caso partimos de la anotación de genes de Ensembl, añadimos los Entrezid y Symbol. 
+Eliminamos las posibles repeticiones.
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Nos quedamos con los identificadores unicos
+rawData = rawData[match(unique(rownames(rawData)), rownames(rawData))]
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Incorporación de otras anotaciones 
+rawData_anot = RX_annot(rawData,
+                        db = org.Hs.eg.db,
+                        fromAnot="ENSEMBL",
+                        toAnot = c("ENTREZID","SYMBOL"))
+```
+
+Tomamos los identificadores de ENTREZID como nombres, pero antes eliminamos 
+repeticiones. 
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Nos quedamos con los identificadores unicos no nulos
+rawData_anot = rawData_anot[match(unique(
+  rowData(rawData_anot)[- which(is.na(rowData(rawData_anot)[,"ENTREZID"])),
+                        "ENTREZID"]),
+  rowData(rawData_anot)[,"ENTREZID"])]
+# Los asignamos como nombres
+rownames(rawData_anot) = rowData(rawData_anot)[,"ENTREZID"]
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+glue("Tenemos {nrow(rawData)} genes anotados,
+     de los cuales {nrow(rawData_anot)} únicos.")
+```
+
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+save(rawData_anot, file = glue("{DirRData}/rawData_anot.RData"))
+```    
+
+
+### Datos finales
+
+Almacenamos la información final que usaremos en el análisis de expresión diferencial.  
+
+```{r echo=TRUE, results = "hide", eval=TRUE, message=FALSE, warning=FALSE}
+# Guardamos los datos anotados
+load(glue("{DirRData}/rawData_anot.RData"))
+finalData = rawData_anot
+save(finalData, file = glue("{DirRData}/finalData.RData"))
+```  
+
+
+*** 
+*** 
+

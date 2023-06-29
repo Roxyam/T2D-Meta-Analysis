@@ -78,13 +78,20 @@ parser$add_argument("-d", "--dir",
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
 #------------- Checking arguments
-args <- parser$parse_args()
+
+#Args example:
+#args <- parser$parse_args(args = c('-g=c("GSE2508","GSE20950", \\
+#                                   "GSE29718", "GSE64567","GSE92405",  \\
+#                                   "GSE141432","GSE205668")', 
+#                                   '-b="E-MEXP-1425"')) 
 
 if (is.null(args$g) & is.null(args$b)){
   stop("Study not specified, please enter the accession of
        one or several studies.",
        call. = FALSE)
 } else{
+  args$geo = eval(parse(text=(args$geo)))
+  args$biostudies = eval(parse(text=(args$biostudies)))
   cat("\nDownloading data...\n\n")
 }
 
@@ -99,7 +106,7 @@ if(!is.null(args$g)){
   cat("\n\t> GEO\n")
   cat("\n---------------------------------------------\n")
   # GEO studies to download
-  GEOstudies = stringr::str_split_1(args$g, pattern = ",")
+  GEOstudies = args$g
   # Use RX function to download all stidies
   out = lapply(GEOstudies, function(e) RX_GetDataGEO(e, DirData))
   cat("\n---------------------------------------------\n")
@@ -110,7 +117,7 @@ if(!is.null(args$b)){
   cat("\n\t> BioStudies/ArrayExpress\n")
   cat("\n---------------------------------------------\n")
   # BioStudies/ArrayExpress studies to download
-  Arrstudies = stringr::str_split_1(args$b, pattern = ",")
+  Arrstudies = args$b
   # Use RX function to download all stidies
   out = lapply(Arrstudies, function(e) RX_GetDataArrEx(e, DirData))
   cat("\n---------------------------------------------\n")

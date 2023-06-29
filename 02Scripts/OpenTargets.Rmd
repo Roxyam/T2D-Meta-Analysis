@@ -1,0 +1,240 @@
+---
+title: "OpenTargets"
+author: "Roxana Andreea Moldovan Moldovan"
+date: "2023-06-09"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
+loadData = TRUE
+centrado = "center"
+doAll = TRUE
+showAll = TRUE
+# Packages
+pacman::p_load(flextable)
+pacman::p_load(officer)
+pacman::p_load(glue) 
+pacman::p_load(dplyr)
+pacman::p_load(stringr) 
+```
+
+# Open Targets
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
+Dir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/OpenTargets"
+ObDB = read.table(glue("{Dir}/Ob.tsv"), sep = "\t", header = TRUE) 
+ObD = ObDB$symbol
+DM2DB = read.table(glue("{Dir}/DM2.tsv"), sep = "\t", header = TRUE)
+DM2D = DM2DB$symbo
+
+```  
+
+
+## Obesidad  
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
+DirData = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/MA/Obesity"
+
+f= c("ObvsNp/Meta-analysis_1_DF.RData", 
+     "ObMvsNpM/Meta-analysis_2_DF.RData",
+     "ObFvsNpF/Meta-analysis_3_DF.RData",
+     "ObM_NpMvsObF_NpF/Meta-analysis_4_DF.RData")
+
+files = glue("{DirData}/{f}")
+
+```
+
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
+# Prepare data
+Datas = sapply(files, function(x) get(load(file=x)), simplify = FALSE) 
+
+p_lim = 0.05
+
+Res = sapply(Datas, function(Data){
+  Data <-  Data %>% 
+    mutate(Significance = 
+             case_when(
+               p.adjust.BH > p_lim ~ "No",
+               logFC < 0 ~ "Down",
+               logFC > 0 ~ "Up",
+               TRUE ~ "-"
+             ))
+  Up = paste(Data[Data$Significance == "Up", "Symbol"], collapse = ", ")
+  Down = paste(Data[Data$Significance == "Down", "Symbol"], collapse = ", ")
+  return(list(Up = Up, Down = Down))
+}, simplify = FALSE)
+
+contrasts2 = Niv = c("IO", "IOM","IOF","SDIO")
+
+names(Res) = contrasts2
+```  
+
+```{r}
+library(flextable)
+library(officer)
+
+# Cadena de entrada
+cadena <- "NAV3, ANGPT1, ZNF354B, CCDC149, ELMOD2, DOCK2, HEATR3, PIK3AP1, PLA2G4C, ADCY7, FCER1G, NAGA, STAB1, ITGB2, CLCC1, SAMSN1, MS4A4A, AGTRAP, ARHGDIB, UCHL1, RNASET2, BTBD19, STIM1, ABCC5, NSMAF, SEPTIN9, DAB2, PRR14, TXNRD1, MARCHF1, FCGR2A, TTLL5, MAF, NSF, SPP1, ARMH3, CROCCP2, ALCAM, C3orf62, LILRB4, F2R, GAS6, CAPNS1, DDX5, AP2M1, CALM3, S100A11, CTSA, GRN, NPC2, ACTR1A, TPP1, CALU, CTSD, ANXA5, PEA15, HYOU1, PSAP, CCND2, PPT1, PSME3, ANXA1"
+
+# Dividir la cadena en palabras
+palabras <- strsplit(cadena, ", ")[[1]]
+
+# Crear una tabla con una celda
+tabla <- flextable(data.frame(Cadena = " "))
+
+# Crear un estilo para cada palabra
+colores <- c("#FF0000", "#00FF00", "#0000FF", "#FF00FF", "#FFFF00", "#00FFFF", "#FFA500")
+
+tabla %>%
+  mk_par(j = "Cadena", value = as_paragraph(as_i("latin_name"), as_b("french_name"), as_chunk("hello ", props = fp_text_default(color = "red"))))
+
+'estilos <- lapply(palabras, function(palabra) {
+  fp <- fp_text(color = sample(colores, 1))
+  paragr <- fp_par(text = palabra, fp_text = fp)
+  cell <- ph_with(paragraph = paragr, location = cell_loc(col_idx = 1, row_idx = 1))
+  cell
+})
+
+# Agregar los estilos a la tabla
+tabla <- compose(tabla, estilos)
+
+# Guardar la tabla en un archivo
+doc <- read_docx()
+doc <- body_add_flextable(doc, value = tabla)
+print(doc, target = "ruta/archivo.docx")
+
+fp_text()'
+```
+
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
+
+```  
+
+
+``` 
+
+#Data = replace(Data, Data == 0, "-")
+Color1 = "#007FA6"
+Color2 = "#007FA6" 
+Color.l = "black" 
+Color.l2 = "#878787"
+Color.up = "#CB326D"
+Color.down = "#00AFBB" 
+font = "Calibri"
+    
+  
+  ## Flextable
+  # Set info
+  ft <- flextable(Data, col_keys = colnames(Data))
+  # Set header
+  ft <- set_header_df(ft, mapping = header, key = "col_keys" )
+  # Format number
+  ft <- colformat_num(ft, big.mark = ".", decimal.mark = "," )
+  # Set footer
+  if(! is.null(footer)){
+    ft <- add_footer(ft, values = footer) %>% 
+      #merge_h(part = "footer")  %>% 
+      bold(j=1, part = "footer") %>%
+      hline(border = fp_border(width = 2, color = Color1), part = "footer")
+  }
+  
+  # Merge headers
+  ft <- merge_h(ft, part = "header") %>% 
+    merge_v( part = "header")
+  
+  # Merge contrastes
+  #ft <- merge_v(ft, j = c(1,2), part = "body")
+  
+  # Horizontal lines
+  'ft <- hline(ft, i=seq(from=3, to=nrow(Data), by=3),
+              border = fp_border(width = 1, color = Color.l2), part="body")'
+  ft <- hline(ft,border = fp_border(width = 2, color = Color1), part = "header")
+  
+  # Outer bottom
+  ft <- hline_bottom(ft, border = fp_border(width = 2, color = Color1))
+  
+  # Alineamiento
+  ft <- flextable::align(ft, align = "center", part = "header")
+  ft <- flextable::align(ft, align = "center", part = "footer")
+  ft <- flextable::align(ft, align = "center", part = "body")
+  
+  # Primera columna alineada
+  ft <- flextable::align(ft, j=1, align = "left", part = "all")
+  
+  
+  # Header design
+  'ft <- fontsize(ft, i = 1:2, size = 12, part = "header") %>%
+    color(i=1, color = Color2, part = "header") %>%
+    color(i=2, color = Color.l2, part = "header") %>%
+    bold(i=1, bold = TRUE, part = "header")'
+  x = Data[, 1]
+    colors = case_when(
+    x == "Up" ~ Color.up,
+    x == "Down" ~ Color.down,
+    TRUE ~ Color.l2
+  )
+  
+  ft <- fontsize(ft, i = 1:2, size = 12, part = "header") %>%
+    color(i=1, color = Color2, part = "header")  %>%
+    color(i=c(2), color = Color.l2, part = "header") %>%
+    bold( bold = TRUE, part = "header") %>%
+    bold( bold = TRUE, j=1, part = "body")  %>%
+    # Colores chachis x
+    color(j=1, color = colors, part = "body")
+  # Rotate names
+  #ft <- rotate(ft, i = 2, rotation = "btlr", part = "header", align = "bottom")
+  
+  # Font
+  #
+  
+  # Matriz de colores
+   ft<- fontsize(ft,  size = 12, part = "all") %>%
+     font(fontname = font, part = "all")
+ft <-ft %>% width(width = 0.3)
+
+  # Footer
+  if(! is.null(footer)){
+    ft <- add_footer(ft, values = footer) %>% 
+      merge_h(part = "footer")  %>% 
+      bold(j=1, part = "footer") %>%
+      hline(border = fp_border(width = 2, color = Color1), part = "footer")
+      ft <- flextable::align(ft, align = "right", part = "footer")
+  ft <- flextable::align(ft, j=1, align = "left", part = "footer")
+  }
+
+# Pintamos de gris los valors -
+  colormatrix <- ifelse(as.matrix(Data) %in% c("0", "-"), Color.l2, Color.l )
+ft <- color(ft, color = colormatrix, part = "body")  %>%
+    color(j=1, color = colors, part = "body")
+ft
+```
+
+
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
+# Prepare data
+Datas = sapply(files, function(x) get(load(file=x)), simplify = FALSE) 
+
+p_lim = 0.05
+
+Res = sapply(Datas, function(Data){
+  Data <-  Data %>% 
+    mutate(Significance = 
+             case_when(
+               p.adjust.BH > p_lim ~ "No",
+               logFC < 0 ~ "Down",
+               logFC > 0 ~ "Up",
+               TRUE ~ "-"
+             ))
+  res = list(Up = Data[Data$Significance == "Up", "Symbol"], Down = Data[Data$Significance == "Down", "Symbol"])
+  return(res)
+}, simplify = FALSE)
+
+contrasts2 = Niv = c("IO", "IOM","IOF","SDIO")
+
+names(Res) = contrasts2
+```  

@@ -2,12 +2,14 @@
 
 # ~~~~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~ ** ~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~~~~ #
 #
-# 07FunctionalAnalysis.R
+# 06FunctionalAnalysis.R
 #
 #
-# Compute ORA or GSEA on Mata-Analysis results:
+# Functional Analysis:
+#
+#     This script allows to carry out a functional analysis based on 
+#     two different methods: ORA and GSEA.
 # 
-#
 #
 #     ****************************************************************
 #     *    Author:  Roxana Andreea Moldovan                          *
@@ -39,38 +41,81 @@ set.seed(1808)
 
 # ~~~~~~~~~~~~ Parameters ~~~~~~~~~~~~ #
 
-# <- ArgumentParser(description="")
+parser <- ArgumentParser(description="This script compute functional 
+                                      analysis on meta-analysis results")
+
+# Data directory
+parser$add_argument("-i", "--indir",
+                    action="store",
+                    type="character",
+                    default=".",
+                    help="Data directory, by default the current
+                          directory will be taken.")
+
+# Output directory
+parser$add_argument("-o", "--outdir",
+                    action="store",
+                    type="character",
+                    default=".",
+                    help="Where you would like the output files to be placed,
+                          by default the current directory will be taken.")
+
+# Output name
+parser$add_argument("-n", "--name",
+                    action="store",
+                    type="character",
+                    default="FA",
+                    help="Output name")
+
+# Input files path
+parser$add_argument("-f", "--files",
+                    action="store",
+                    type="character",
+                    required=TRUE,
+                    help="Input files path")
+
+# Contrasts
+parser$add_argument("-c", "--contrasts",
+                    action="store",
+                    type="character",
+                    required=TRUE,
+                    help="Contrasts to include.") 
+
+# Method
+parser$add_argument("-m", "--method",
+                    action="store",
+                    type="character",
+                    choices = c("ORA","GSEA"),
+                    default= "GSEA",
+                    help="Functional anlysis method")  
+
+# Database 
+parser$add_argument("-d", "--database",
+                    action="store",
+                    type="character",
+                    default= "Reactome",
+                    help="Data base to use. One or more of:
+                          BP, MF, CC, KEGG, Reactome")  
 
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
-#------------- Prepare arguments
-args = list()
-args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/MA/Obesity"
-#args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/MA/Diabetes"
+#------------- Execution 
+args <- parser$parse_args(args = c('-i=/home/rmoldovan/T2D-Meta-Analysis/Data/MA/Obesity',
+                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/Data/FA',
+                                   '-f=c("IO/Meta-analysis_1_DF.RData",   \\
+                                         "IOM/Meta-analysis_2_DF.RData",  \\
+                                         "IOF/Meta-analysis_3_DF.RData",   \\
+                                         "SDIO/Meta-analysis_4_DF.RData")',
+                                   '-c=c("Ob_IS - Np_IS",  \\
+                                         "Ob_IS.M - Np_IS.M",  \\
+                                         "Ob_IS.F - Np_IS.F",  \\
+                                         "(Ob_IS.M - Np_IS.M) - (Ob_IS.F-  Np_IS.F)")',
+                                   '-d=c("BP", "MF", "CC", "KEGG", "Reactome")')) 
 
-args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/FA_intersect"
-
-args$outname = "Obesidad"
-#args$outname = "Diabetes"
-
-args$files = c("ObvsNp/Meta-analysis_1_DF.RData", 
-                  "ObMvsNpM/Meta-analysis_2_DF.RData",
-                  "ObFvsNpF/Meta-analysis_3_DF.RData",
-                  "ObM_NpMvsObF_NpF/Meta-analysis_4_DF.RData")
-'args$files = c("ObM_NpMvsObF_NpF/Meta-analysis_4_DF.RData")
-args$files = c("ObIRvsObIS/Meta-analysis_1_DF.RData", 
-               "ObIRMvsObISM/Meta-analysis_2_DF.RData",
-               "ObIRFvsObISF/Meta-analysis_3_DF.RData",
-               "IRM_ISMvsIRF_ISF/Meta-analysis_4_DF.RData")'
-
-args$contrasts = c("Ob_IS - Np_IS", "Ob_IS.M - Np_IS.M", "Ob_IS.F - Np_IS.F", "(Ob_IS.M - Np_IS.M) - (Ob_IS.F-  Np_IS.F)")
-#args$contrasts = c( "(Ob_IS.M - Np_IS.M) - (Ob_IS.F-  Np_IS.F)")
-'args$contrasts = c("Ob_IR - Ob_IS", "Ob_IR.M - Ob_IS.M", "Ob_IR.F - Ob_IS.F",
-                   "(Ob_IR.M-Ob_IS.M) - (Ob_IR.F-Ob_IS.F)")'
-
-args$method = c("GSEA") # ORA or GSEA
-args$database = c("BP", "MF", "CC", "KEGG", "Reactome")
-args$isec = c(2,3) # Si ponemos intersect en los de sexo toma solo los exclusivos?
+#------------- Checking arguments
+args$files = eval(parse(text = args$files))
+args$contrasts = eval(parse(text = args$contrasts))
+args$database = eval(parse(text = args$database)) 
 
 # Get data
 DirOut = args$outdir
@@ -98,10 +143,14 @@ if(args$method == "ORA"){
   names(Data) = contrasts
   
   if(! is.null(args$isec)){
-    Data[[args$isec[[1]]]]$Up = setdiff(Data[[args$isec[[1]]]][[1]], Data[[args$isec[[2]]]][[1]])
-    Data[[args$isec[[1]]]]$Down = setdiff(Data[[args$isec[[1]]]][[2]], Data[[args$isec[[2]]]][[2]])
-    Data[[args$isec[[2]]]]$Up = setdiff(Data[[args$isec[[2]]]][[1]], Data[[args$isec[[1]]]][[1]])
-    Data[[args$isec[[2]]]]$Down = setdiff(Data[[args$isec[[2]]]][[2]], Data[[args$isec[[2]]]][[1]])
+    Data[[args$isec[[1]]]]$Up = setdiff(Data[[args$isec[[1]]]][[1]],
+                                        Data[[args$isec[[2]]]][[1]])
+    Data[[args$isec[[1]]]]$Down = setdiff(Data[[args$isec[[1]]]][[2]],
+                                          Data[[args$isec[[2]]]][[2]])
+    Data[[args$isec[[2]]]]$Up = setdiff(Data[[args$isec[[2]]]][[1]],
+                                        Data[[args$isec[[1]]]][[1]])
+    Data[[args$isec[[2]]]]$Down = setdiff(Data[[args$isec[[2]]]][[2]],
+                                          Data[[args$isec[[2]]]][[1]])
       }
   
   # Go BP
@@ -121,7 +170,7 @@ if(args$method == "ORA"){
     })
     Results = setNames(Results, contrasts) 
     
-    save(Results, file=glue("{DirOut}/{args$outname}_oraBP.RData"))
+    save(Results, file=glue("{DirOut}/{args$name}_oraBP.RData"))
   }
   # GO MF
   if ("MF" %in% args$database){ 
@@ -140,7 +189,7 @@ if(args$method == "ORA"){
     })
     Results = setNames(Results, contrasts) 
     
-    save(Results, file=glue("{DirOut}/{args$outname}_oraMF.RData"))
+    save(Results, file=glue("{DirOut}/{args$name}_oraMF.RData"))
   }
   # GO CC
   if ("CC" %in% args$database){ 
@@ -160,7 +209,7 @@ if(args$method == "ORA"){
     })
     Results = setNames(Results, contrasts) 
     
-    save(Results, file=glue("{DirOut}/{args$outname}_oraCC.RData"))
+    save(Results, file=glue("{DirOut}/{args$name}_oraCC.RData"))
   }
   # KEGG
   if ("KEGG" %in% args$database){ 
@@ -179,7 +228,7 @@ if(args$method == "ORA"){
     })
     Results = setNames(Results, contrasts) 
     
-    save(Results, file=glue("{DirOut}/{args$outname}_oraKEGG.RData"))
+    save(Results, file=glue("{DirOut}/{args$name}_oraKEGG.RData"))
   }
   # Reactome
   if ("Reactome" %in% args$database){ 
@@ -196,7 +245,7 @@ if(args$method == "ORA"){
     })
     Results = setNames(Results, contrasts) 
     
-    save(Results, file=glue("{DirOut}/{args$outname}_oraReactome.RData"))
+    save(Results, file=glue("{DirOut}/{args$name}_oraReactome.RData"))
   }
 }else{
   cat("\n> GSEA\n")
@@ -227,7 +276,7 @@ if(args$method == "ORA"){
       return(enrich_result)})
     Results = setNames(Results, contrasts) 
     
-    save(Results, file=glue("{DirOut}/{args$outname}_gseBP.RData"))
+    save(Results, file=glue("{DirOut}/{args$name}_gseBP.RData"))
   }
   # GO MF
   if ("MF" %in% args$database){ 
@@ -244,7 +293,7 @@ if(args$method == "ORA"){
       return(enrich_result)})
     Results = setNames(Results, contrasts) 
     
-    save(Results, file=glue("{DirOut}/{args$outname}_gseMF.RData"))
+    save(Results, file=glue("{DirOut}/{args$name}_gseMF.RData"))
   }
   # GO CC
   if ("CC" %in% args$database){ 
@@ -261,7 +310,7 @@ if(args$method == "ORA"){
       return(enrich_result)}) 
     Results = setNames(Results, contrasts) 
     
-    save(Results, file=glue("{DirOut}/{args$outname}_gseCC.RData"))
+    save(Results, file=glue("{DirOut}/{args$name}_gseCC.RData"))
   }
   # KEGG
   if ("KEGG" %in% args$database){ 
@@ -278,7 +327,7 @@ if(args$method == "ORA"){
       return(enrich_result)}) 
     Results = setNames(Results, contrasts) 
     
-    save(Results, file=glue("{DirOut}/{args$outname}_gseKEGG.RData"))
+    save(Results, file=glue("{DirOut}/{args$name}_gseKEGG.RData"))
   }
   # Reactome
   if ("Reactome" %in% args$database){ 
@@ -293,10 +342,12 @@ if(args$method == "ORA"){
       return(enrich_result)})
     Results = setNames(Results, contrasts) 
     
-    save(Results, file=glue("{DirOut}/{args$outname}_gseReactome.RData"))
+    save(Results, file=glue("{DirOut}/{args$name}_gseReactome.RData"))
   }
   
 }
 
+cat("\nDone\n")
+cat("\n---------------------------------------------\n")
 
-
+# ~~~~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~ ** ~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~~~~ #

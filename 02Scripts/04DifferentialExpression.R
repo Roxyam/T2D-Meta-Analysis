@@ -37,108 +37,14 @@ pacman::p_load(glue)
 pacman::p_load(ggplot2)
 pacman::p_load(ggrepel)
 pacman::p_load(limma)
+pacman::p_load(parallel)
 pacman::p_load(stringr)
-pacman::p_load(SummarizedExperiment) 
+pacman::p_load(SummarizedExperiment)
 
 
 # ~~~~~~~~~~~~ Functions ~~~~~~~~~~~~ #
 
-source("../Functions/Functions.R")
-RX_contrast <- function(expmatrix, design, C){
-  # library(limma)
-  set.seed(1808) 
-  contMatrix <- makeContrasts(contrasts = C, levels = design)
-  fit <- lmFit(expmatrix, design)
-  fit2 <- contrasts.fit(fit, contMatrix)
-  Res <- eBayes(fit2)
-  Res$TopTab <- topTable(Res, number = Inf, adjust.method = "BH", sort.by = "none") #, sort.by = "logFC"
-  
-  return(Res)
-}
-
-RX_DiffExp <- function(phenoData, expressData , C, var="Group",
-                       studyType = "Array", covar = NULL){
-  #library(Biobase)
-  #library(stringr)
-  set.seed(1808)
-  if(length(var) == 2){
-    contrast = interaction(phenoData[,var[1]], phenoData[,var[2]])
-  }else{
-    contrast = phenoData[,var]
-  }
-  
-  if(is.null(covar) | ! is.factor(phenoData[, covar])){
-    design = model.matrix(~0 + contrast)
-    colnames(design) <- str_replace(levels(contrast) , "-", "_")
-  }else{
-    cov = factor(make.names(phenoData[, covar]))
-    design = model.matrix(~ 0 + contrast + cov)
-    colnames(design) <- c(str_replace(levels(contrast) , "-", "_"),
-                          levels(cov)[-2])
-  }
-  
-  
-  # Si es RNA-seq usamos voom
-  if (studyType == "RNA-seq"){
-    expressData = voom(expressData, design = design, plot = F)
-  }
-  # Top table
-  Res <- sapply(C, function(x) RX_contrast(expressData, design, x),
-                simplify = FALSE, USE.NAMES = TRUE)
-  return(Res)
-}
-
-# Global
-RX_DiffExpFinal <- function(Data, var1="Group", var2="Gender", ...){
-  # library(SummarizedExperiment)
-  # library(Biobase)
-  # library(glue) 
-  set.seed(1808) 
-  if(class(Data) == "ExpressionSet"){
-    phenoData = pData(Data)
-    expressData = exprs(Data)
-    studyType = "Array"
-  }else{
-    phenoData = colData(Data)
-    studyType = "RNA-seq"
-    expressData = assay(Data)      
-  }
-  # Tomamos las variables
-  Group = str_replace(levels(phenoData[,var1]) , "-", "_")
-  Gender = levels(phenoData[,var2])
-  Tissue = levels(phenoData$Tissue)
-  # Separamos por tejidos
-  phenoDatas = sapply(Tissue, function(x) phenoData[which(phenoData$Tissue == x),],
-                      simplify = FALSE, USE.NAMES = TRUE)
-  expressDatas = sapply(Tissue, function(x) expressData[,which(phenoData$Tissue == x)],
-                        simplify = FALSE, USE.NAMES = TRUE)
-  
-  V1 = str_replace(levels(phenoData[,var1]) , "-", "_")
-  V2 = levels(phenoData[,var2])
-  # Contrastes
-  'C1 = c(glue("{V1[2]} - {V1[1]}"))
-  C2 = c(glue("({Group[2]}.{Gender} - {Group[1]}.{Gender})"))
-  C3 = c(C2, glue("{C2[1]} - {C2[2]}"))'
-  # Contrastes
-  C1 = combn(rev(Group), m=2, FUN = paste,collapse=" - ", simplify = TRUE)
-  
-  C2 = sapply(Gender, 
-              function(x) combn(levels(interaction(Group, x))[match(rev(Group), strsplit2(levels(interaction(Group, x)),
-                                                                                          split = ".", fixed = TRUE)[,1])],
-                                m=2, FUN = paste,collapse=" - ",
-                                simplify = TRUE), simplify = F)
-  
-  C3 = sapply(seq(C1), function(i) glue("({C2$M[i]}) - ({C2$F[i]})"))
-  C3 = c(unlist(C2), C3, use.names = FALSE)
-  
-  
-  Tt = sapply(Tissue, function(x) c(RX_DiffExp(phenoDatas[[x]], expressDatas[[x]] , C1, var=var1, studyType = studyType, ...),
-                                    RX_DiffExp(phenoDatas[[x]], expressDatas[[x]], C3, var=c(var1, var2), studyType = studyType, ...)),
-              simplify = FALSE, USE.NAMES = TRUE) 
-  
-  return(Tt)
-}
-
+source("Functions/Functions.R") 
 
 # ~~~~~~~~~~~~ Parameters ~~~~~~~~~~~~ #
 
@@ -157,8 +63,7 @@ parser$add_argument("-s", "--studies",
 parser$add_argument("-v", "--vars",
                     action="store",
                     type="character",
-                    default="Group",
-                    choices = c("Group","Obesity", "Diabetes"), 
+                    default="Group", 
                     help="Variable or variables to use in the
                           differential expression.")
 # Covariables
@@ -187,53 +92,31 @@ parser$add_argument("-o", "--outdir",
 
 # Report
 parser$add_argument("-r", "--report",
-                    action="store",
-                    type="character",
-                    dafault=TRUE,
+                    action="store_true",
                     help="Create an R Markdown and HTML with the results.")
 
 # Plots
 parser$add_argument("-p", "--plot",
                     action="store_true",
-                    type="character",
-                    dafault=FALSE,
-                    help="Add plots to report")
-
+                    help="Add plots to report") 
 
 
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
+#------------- Execution
+parser$print_help()
+args <- parser$parse_args(args = c('-s=c("E_MEXP_1425","GSE2508","GSE20950", \\
+                                   "GSE29718", "GSE64567","GSE92405",  \\
+                                   "GSE141432","GSE205668")', 
+                                   '-v=c("Obesity", "Diabetes")', 
+                                   '-i=/home/rmoldovan/T2D-Meta-Analysis/Data',
+                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/04DE',
+                                   '-r',
+                                   '-p')) 
+
 #------------- Prepare arguments
-#args <- parser$parse_args()
-
-## xx NONO
-
-args = list()
-args$report = TRUE
-args$outdir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Data/DE2"
-args$indir = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn/Data"
-#args$vars = c("Group","Obesity", "Diabetes")
-#args$vars = c("Obesity", "Diabetes")
-args$vars = c("Group")
-
-args$covars = NULL
-#args$covars = "Batch"
-
-args$studies = c("E_MEXP_1425",
-                 "GSE2508",
-                 "GSE20950", 
-                 "GSE29718", 
-                 "GSE64567",
-                 "GSE78721",
-                 "GSE92405",
-                 "GSE141432",
-                 "GSE205668")
-            
-args$plot = TRUE
-report_out = glue("{args$outdir}/DifferentialExpressionReport.rmd")
-
-## NONO
-
+args$studies = eval(parse(text=(args$studies)))
+args$vars = eval(parse(text=(args$vars)))
 report_out = glue("{args$outdir}/DifferentialExpressionReport.rmd")
 
 # Output directory
@@ -273,26 +156,26 @@ for (var in args$vars){
       }
       
       Res = sapply(names(Res), 
-                   function(i) sapply(names(Res[[i]]),
-                                      function(j){ # Top table
-                                        Res[[i]][[j]]$"TopTab" = cbind(Res[[i]][[j]]$"TopTab",
+                   function(i) setNames(mclapply(names(Res[[i]]),
+                                        function(j){ # Top table
+                                          Res[[i]][[j]]$"TopTab" = cbind(Res[[i]][[j]]$"TopTab",
                                                          anotData[match(rownames(Res[[i]][[j]]$"TopTab"),
                                                                         anotData$ENTREZID),])
-                                        # Volcano plot
-                                        if(isTRUE(args$plot)){
-                                          Plot = RX_VolcanoPlot(Res[[i]][[j]]$"TopTab", logFC_lim = 0) 
-                                          ggsave(Plot,
-                                                 device = "svg",
-                                                 height = 6, 
-                                                 width = 10,
-                                                 filename=glue("{DirDEData}/Plots/{study}_{i}_{j}.svg"))
-                                        }
+                                          # Volcano plot
+                                          if(isTRUE(args$plot)){
+                                            Plot = RX_VolcanoPlot(Res[[i]][[j]]$"TopTab", logFC_lim = 0) 
+                                            ggsave(Plot,
+                                                   device = "svg",
+                                                   height = 6, 
+                                                   width = 10,
+                                                   filename=str_replace_all(glue("{DirDEData}/Plots/{study}_{i}_{j}.svg"), "\\s", ""))
+                                          }
                                         #Res[[i]][[j]]$"Plot" = RX_VolcanoPlot(Res[[i]][[j]]$"TopTab", logFC_lim = 0)
-                                        return(Res[[i]][[j]])}, simplify = FALSE
-                                      ),simplify = FALSE
-                   )  
+                                        return(Res[[i]][[j]])} #, simplify = FALSE
+                                      ), nm=names(Res[[i]])) ,simplify = FALSE
+                   )
       
-      library(parallel)# Save the information in a R data file
+      # Save the information in a R data file
       Results = c(Results, list(Res))
       Studies_out = c(Studies_out, study)
       #save(Res, file = glue("{DirDEData}/{Acc}DifferentialExpression{var}.RData")) 
@@ -358,9 +241,10 @@ pacman::p_load(ggpubr)
 pacman::p_load(flextable)
 pacman::p_load(officer)
 pacman::p_load(dplyr)
+pacman::p_load(magick)
 
 # Functions
-source("C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Git/T2D-Meta-Analysis/Functions/Functions.R")
+#source("Functions/Functions.R")
 Dir = "',args$outdir,'" ',
     # Close chunk
     '\n```  \n\n','\n&nbsp;  \n\n',
@@ -371,6 +255,20 @@ Dir = "',args$outdir,'" ',
   cat(
     # Open chunk
     '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}\n',
+    '# Plot output
+RX_grid_img <- function(paths){
+  grid = NULL
+  for (i in seq(from = 1, to=length(paths), by=2)){
+    a = image = image_read(paths[i])
+    b = image_read(paths[i+1])
+    row = image_append(c(a, b))
+    if(is.null(grid)){
+      grid = row
+    }else{
+      grid = image_append(c(grid,row),  stack = TRUE)
+    } }
+    return(grid)
+    }\n',
     '# Output table
 RX_table <- function(Data,
                      Color1 = "#007FA6",
@@ -435,7 +333,7 @@ RX_table <- function(Data,
   #ft <- rotate(ft, i = 2, rotation = "btlr", part = "header", align = "bottom")
   
   # Font
-  font(ft, fontname = font, part = "all")
+  #font(ft, fontname = font, part = "all")
   
   # Matriz de colores
   colormatrix <- ifelse(Data[, cols] == 0, Color.l2, Color.l )
@@ -563,38 +461,27 @@ RX_table(DT_tis, footer = val) # OUT',
         
         # Recorremos los contrastes por tejido
         contrasts = names(Results[[St]][[tis]]) 
+        if(!is.null(contrasts)){
         cat(
           '\n###### ', St ,'  {-}  \n\n',
           # Open chunk
-          '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=', (ceiling(length(contrasts)/2)*6),', fig.align="center"}\n\n',
-          '# Save plots\n',
-          'contrasts = c(', paste("'",contrasts,"'", collapse = ", ", sep = ""),')\n',
-          'knitr::include_graphics(glue("{Dir}/Plots/',St,'_',tis,'_{contrasts}.svg"))\n',
-          'if (length(Plots_cont) >0){
- ggarrange(plotlist = Plots_cont,
- labels= names(Plots_cont),
- common.legend = TRUE,
- ncol = 2,
- nrow = ',(ceiling(length(contrasts)/2)),',
- align = "hv",
- hjust = -0.2,
- vjust = 1,
- font.label = list(size=6),
- widths = c(1, 1),
- legend = "bottom")\n
- }',
+          '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=', (ceiling(length(contrasts)/2)*5),', fig.align="center"}\n\n',
+          'contrasts = c(', paste("'",str_replace_all(contrasts,"\\s", ""),"'", collapse = ", ", sep = ""),')\n',
+          'paths = glue("{Dir}/Plots/',St,'_',tis,'_{contrasts}.svg")\n',
+          'RX_grid_img(paths)\n', 
           # Close chunk
           '\n```  \n\n','\n&nbsp;  \n\n',
           '\n***  \n',
           sep ="",
           file = report_out,
           append = TRUE)
+          }
         
       }}
     }
   }
 # Create HTML
-#rmarkdown::render(report_out)
+rmarkdown::render(report_out)
 }
 
 cat("\nDone\n")

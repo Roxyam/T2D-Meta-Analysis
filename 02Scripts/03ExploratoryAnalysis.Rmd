@@ -62,8 +62,7 @@ pacman::p_load(plyr)
 pacman::p_load(stringr)
 
 ## Parametros
-DirBase = "/home/rmoldovan/Metaanalisis"
-DirBase = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/Met_sn"
+DirBase = "/home/rmoldovan/T2D-Meta-Analysis"
 DirData = glue("{DirBase}/Data")
 DirPlots =  glue("{DirBase}/Plots")
 

@@ -47,7 +47,7 @@ pacman::p_load(SummarizedExperiment)
 pacman::p_load(sva)
 
 ## Parametros
-DirBase = "/home/rmoldovan/Metaanalisis"
+DirBase = "/home/rmoldovan/T2D-Meta-Analysis"
 DirData = glue("{DirBase}/Data")
 ```
 

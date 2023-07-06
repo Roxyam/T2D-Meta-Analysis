@@ -1,0 +1,127 @@
+---
+title: "05 Metaanálisis."
+author: "Roxana Andreea Moldovan Moldovan"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: false
+    toc_float: false
+    number_sections: false 
+    code_folding: hide
+    theme: flatly
+    bg: "#FFFFFF"
+    fg: "#202020"
+    primary: "#90C432"
+    secondary: "#2494b5" 
+  pDT_document:
+    extra_dependencies: "subfig"
+linkcolor: blue
+urlcolor: blue
+citecolor: blue
+header-includes:
+- \usepackage{subfig}
+- \usepackage{float}
+fig_caption: yes 
+link-citations: TRUE 
+---
+        
+## Meta-análisis {.tabset .tabset-fade -} 
+&nbsp;  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+# Load packages 
+library(pacman)
+pacman::p_load(glue)
+pacman::p_load(DT)
+pacman::p_load(magick)
+```  
+
+
+En este documento se muestran los resultados del metaanálisis de los estudios: GSE20950, GSE141432 para el contraste (Ob_IR.M - Ob_IS.M) - (Ob_IR.F - Ob_IS.F).  
+&nbsp;  
+
+
+Tomando un p valor ajustado por BH < 0.05 encontramos 0 genes significativos.  
+&nbsp;  
+
+
+### Tabla de resultados {-} 
+&nbsp;  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+DT = get(load("/home/rmoldovan/T2D-Meta-Analysis/Data/MA/Diabetes/SDID/Meta-analysis_4_DF.RData"))
+datatable(DT, options = list(caption = "Resultados del metaanálisis.",
+                              scrollX = TRUE),
+                              filter = "top")
+```  
+
+
+&nbsp;  
+
+
+### Representación gráfica {-}  
+&nbsp; 
+
+Aquí se muestran las figuras características del metaanálisis para los
+genes significativos tomando un p valor ajustado por BH < 0.05.  
+&nbsp;  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+# Función para repesentar las figuras
+grid_img <- function(list_fig, dir, patt, dim = 300){
+  # Abrimos todas las filas:
+  forest_plots = c()
+  funnel_plots = c()
+  influ_plots = c()
+  for (fig in list_fig){
+    f1 = glue("{fig}forest.svg")
+    out1 <- magick::image_read(paste0(dir, "/", f1))
+    forest_plots = c(forest_plots, image_scale(out1, dim))
+    
+    f2 = glue("{fig}funnel.svg")
+    out2 <- magick::image_read(paste0(dir,"/", f2))
+    funnel_plots = c(funnel_plots, image_scale(out2, dim))  
+    
+    f3 = glue("{fig}influence.svg")
+    out3 <- magick::image_read(paste0(dir,"/", f3))
+    influ_plots = c(influ_plots, image_scale(out3, dim))
+  } 
+  
+  lim = length(forest_plots)
+  grid = NULL
+  for ( i in seq(list_fig)){
+    a = forest_plots[[i]]
+    b = funnel_plots[[i]]
+    c = influ_plots[[i]]
+    
+    fila <- image_append(c(a, b, c))
+    
+    if(is.null(grid)){
+      grid = fila
+    }else{
+      grid = image_append(c(grid,fila),  stack = TRUE)
+    } 
+  }
+    return(grid)
+}
+```  
+
+
+&nbsp;  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, out.width=".99\\linewidth"}
+path = "/home/rmoldovan/T2D-Meta-Analysis/Data/MA/Diabetes/SDID/Plots"
+files <- list.files(path = path, pattern = "Meta-analysis_4.*forest")
+figuras = sapply( files, function(x) substr(x, start = 0, stop = nchar(x)-10), 
+                  USE.NAMES = FALSE)
+# Plot
+grid_img(figuras, dir = path)
+```  
+
+
+&nbsp;  
+

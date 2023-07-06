@@ -5,7 +5,11 @@
 # Functions.R
 #
 #
-# Collection of udeid in this Metha-analysis
+#     This file contains a set of functions that are relevant for the 
+#     entire project development. These functions are organized based 
+#     on the steps in which they have been utilized. Within each
+#     function, you can find detailed information about its
+#     functionality, parameters, and dependencies.
 #
 #
 #     ****************************************************************
@@ -17,13 +21,6 @@
 #
 #
 # ~~~~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~ ** ~~~~~~~~~ ~~~~~~~~~~~~ ~~~~~~~~~~~~ #
-
-
-#pacman::p_load(dplyr)
-#pacman::p_load(ggplot2)
-#pacman::p_load(plotly)
-pacman::p_load(tidyr)
-#library(ggnewscale)
 
 # ~~~~~~~~~~~~ General ~~~~~~~~~~~~ #
 

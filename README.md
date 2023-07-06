@@ -168,7 +168,7 @@ args <- parser$parse_args(args = c('-s=c("E_MEXP_1425","GSE2508","GSE20950", \\
 *Command-line arguments:* 
 
 ```bash 
-Rscript 04DifferentialExpression.R -s 'c("E_MEXP_1425","GSE2508","GSE20950", "GSE29718", "GSE64567","GSE92405", "GSE141432","GSE205668")' -v 'c("Obesity", "Diabetes")' -i '/home/rmoldovan/T2D-Meta-Analysis/Data' -o '/home/rmoldovan/T2D-Meta-Analysis/04DE' -r -p
+Rscript 04DifferentialExpression.R -s 'c("E_MEXP_1425","GSE2508","GSE20950", "GSE29718", "GSE64567","GSE92405", "GSE141432","GSE205668")' -v 'c("Obesity", "Diabetes")' -i '/Data' -o '/Data/04DE' -r -p
 
 ```   
 
@@ -194,6 +194,7 @@ Rscript 04DifferentialExpression.R --help
 
 During the development of this project, the following packages were required:  
 
+<div align="center">
 
   | Package                   | Version   |
   |---------------------------|-----------|

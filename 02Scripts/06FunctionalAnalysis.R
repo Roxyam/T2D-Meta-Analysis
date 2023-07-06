@@ -100,18 +100,18 @@ parser$add_argument("-d", "--database",
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
 #------------- Execution 
-args <- parser$parse_args(args = c('-i=/home/rmoldovan/T2D-Meta-Analysis/Data/MA/Obesity',
-                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/Data/FA',
-                                   '-f=c("IO/Meta-analysis_1_DF.RData",   \\
-                                         "IOM/Meta-analysis_2_DF.RData",  \\
-                                         "IOF/Meta-analysis_3_DF.RData",   \\
-                                         "SDIO/Meta-analysis_4_DF.RData")',
-                                   '-c=c("Ob_IS - Np_IS",  \\
-                                         "Ob_IS.M - Np_IS.M",  \\
-                                         "Ob_IS.F - Np_IS.F",  \\
-                                         "(Ob_IS.M - Np_IS.M) - (Ob_IS.F-  Np_IS.F)")',
-                                   '-d=c("BP", "MF", "CC", "KEGG", "Reactome")')) 
-
+#args <- parser$parse_args(args = c('-i=/home/rmoldovan/T2D-Meta-Analysis/Data/MA/Obesity',
+#                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/Data/FA',
+#                                   '-f=c("IO/Meta-analysis_1_DF.RData",   \\
+#                                         "IOM/Meta-analysis_2_DF.RData",  \\
+#                                         "IOF/Meta-analysis_3_DF.RData",   \\
+#                                         "SDIO/Meta-analysis_4_DF.RData")',
+#                                   '-c=c("Ob_IS - Np_IS",  \\
+#                                         "Ob_IS.M - Np_IS.M",  \\
+#                                         "Ob_IS.F - Np_IS.F",  \\
+#                                         "(Ob_IS.M - Np_IS.M) - (Ob_IS.F-  Np_IS.F)")',
+#                                   '-d=c("BP", "MF", "CC", "KEGG", "Reactome")')) 
+#
 #------------- Checking arguments
 args$files = eval(parse(text = args$files))
 args$contrasts = eval(parse(text = args$contrasts))

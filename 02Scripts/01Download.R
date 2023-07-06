@@ -78,11 +78,11 @@ parser$add_argument("-d", "--dir",
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
 #------------- Execution
-args <- parser$parse_args(args = c('-g=c("GSE2508","GSE20950", \\
-                                   "GSE29718", "GSE64567","GSE92405",  \\
-                                   "GSE141432","GSE205668")', 
-                                   '-b="E-MEXP-1425"'))
-
+#args <- parser$parse_args(args = c('-g=c("GSE2508","GSE20950", \\
+#                                   "GSE29718", "GSE64567","GSE92405",  \\
+#                                   "GSE141432","GSE205668")', 
+#                                   '-b="E-MEXP-1425"'))
+#
 #------------- Checking arguments 
 
 if (is.null(args$g) & is.null(args$b)){

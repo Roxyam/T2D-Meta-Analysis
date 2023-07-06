@@ -133,13 +133,13 @@ parser$add_argument("-mx", "--pmax",
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
 #------------- Execution 
-args <- parser$parse_args(args = c('-t="SAT"',
-                                   '-f=/home/rmoldovan/T2D-Meta-Analysis/Data/04DE/DifferentialExpressionGroup.RData',
-                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/Data/05MA/Obesity/SDIO',
-                                   '-c=(Ob_IS.M - Np_IS.M) - (Ob_IS.F - Np_IS.F)',
-                                   '-p=Meta-analysis_4',
-                                   '-id=Meta-analysis_4'))
-
+#args <- parser$parse_args(args = c('-t="SAT"',
+#                                   '-f=/home/rmoldovan/T2D-Meta-Analysis/Data/04DE/DifferentialExpressionGroup.RData',
+#                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/Data/05MA/Obesity/SDIO',
+#                                   '-c=(Ob_IS.M - Np_IS.M) - (Ob_IS.F - Np_IS.F)',
+#                                   '-p=Meta-analysis_4',
+#                                   '-id=Meta-analysis_4'))
+#
 #------------- Checking arguments 
 # Load the data
 Datas = get(load(args$filein))

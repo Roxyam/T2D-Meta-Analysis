@@ -1,18 +1,4 @@
-# T2D-Meta-Analysis
+![](https://capsule-render.vercel.app/api?type=waving&color=gradient&&customColorList=3&height=300&section=header&text=T2D-Meta-Analysis&fontSize=60&animation=fadeIn&fontAlignY=38&desc=Transcriptomic%20landscape%20of%20sex%20differences%20in%20obesity%20and%20T2D&descAlignY=51&descAlign=62)
 
 
-
-
-
-Ideas:
-
-https://github.com/matiassingers/awesome-readme
-https://github.com/amitmerchant1990/electron-markdownify#readme
-
-Tabla bonita: https://github.com/ArmynC/ArminC-AutoExec/#readme
-Tablas con fotos: https://github.com/CCOSTAN/Home-AssistantConfig#readme
-https://github.com/gofiber/fiber#readme
-
-SVGs guays
-
-Lineas de colores: https://github.com/ma-shamshiri/Spam-Detector#readme
+![](https://capsule-render.vercel.app/api?type=waving&color=gradient&&customColorList=3&height=200&section=footer&desc=Transcriptomic%20landscape%20of%20sex%20differences%20in%20obesity%20and%20T2D&descAlignY=81&descAlign=62)

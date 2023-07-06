@@ -104,16 +104,16 @@ parser$add_argument("-p", "--plot",
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
 #------------- Execution
-parser$print_help()
-args <- parser$parse_args(args = c('-s=c("E_MEXP_1425","GSE2508","GSE20950", \\
-                                   "GSE29718", "GSE64567","GSE92405",  \\
-                                   "GSE141432","GSE205668")', 
-                                   '-v=c("Obesity", "Diabetes")', 
-                                   '-i=/home/rmoldovan/T2D-Meta-Analysis/Data',
-                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/04DE',
-                                   '-r',
-                                   '-p')) 
-
+#parser$print_help()
+#args <- parser$parse_args(args = c('-s=c("E_MEXP_1425","GSE2508","GSE20950", \\
+#                                   "GSE29718", "GSE64567","GSE92405",  \\
+#                                   "GSE141432","GSE205668")', 
+#                                   '-v=c("Obesity", "Diabetes")', 
+#                                   '-i=/home/rmoldovan/T2D-Meta-Analysis/Data',
+#                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/Data/04DE',
+#                                   '-r',
+#                                   '-p')) 
+#
 #------------- Prepare arguments
 args$studies = eval(parse(text=(args$studies)))
 args$vars = eval(parse(text=(args$vars)))

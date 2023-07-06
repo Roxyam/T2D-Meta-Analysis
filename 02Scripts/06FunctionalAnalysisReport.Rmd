@@ -1,0 +1,634 @@
+---
+title: "06FunctionalAnalysisReport"
+author: "Roxana Andreea Moldovan Moldovan"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: false
+    toc_float: false
+    number_sections: false 
+    code_folding: hide
+    theme: flatly
+    bg: '#FFFFFF'
+    fg: '#202020'
+    primary: '#90C432'
+    secondary: '#2494b5' 
+  pdf_document:
+    extra_dependencies: "subfig"
+linkcolor: blue
+urlcolor: blue
+citecolor: blue
+header-includes:
+- \usepackage{subfig}
+- \usepackage{float}
+fig_caption: yes 
+link-citations: TRUE
+
+---  
+
+```{r setup, include=FALSE}    
+loadData = FALSE
+preloadData = TRUE 
+```
+
+# Resumen GSEA {.tabset .tabset-fade -}
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, results = "hide"}
+# Packages
+pacman::p_load(ComplexHeatmap)
+pacman::p_load(ComplexUpset)
+pacman::p_load(dplyr)
+pacman::p_load(flextable)
+pacman::p_load(ggforce)
+pacman::p_load(ggplot2)
+pacman::p_load(ggVennDiagram)
+pacman::p_load(glue)
+pacman::p_load(Hmisc)
+pacman::p_load(officer)
+pacman::p_load(rrvgo)
+pacman::p_load(sf)
+pacman::p_load(stringr)  
+
+#Params
+DirBase = "/home/rmoldovan/T2D-Meta-Analysis"
+DirData = glue("{DirBase}/Data")
+DirOut = glue("{DirData}/FA") 
+```  
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
+# Functions
+source("/Functions/Functions.R")
+
+RX_revigo <- function(reducedTerms,
+                      wrap = 11){
+  
+  plot_df = data.frame(sort(table((reducedTerms$parentTerm)),
+                            decreasing = T))[c(0:20),]
+  colnames(plot_df) = c("region", "n")
+  plot_df$region = factor(str_to_sentence(plot_df$region), levels=str_to_sentence(plot_df$region))
+  plot_df$ord = match(plot_df$n,unique(plot_df$n)) 
+  
+  maxy = log2(max(plot_df$n) + max(plot_df$n)*0.5)
+  plt <- ggplot(plot_df) +
+    # Make custom panel grid
+    geom_hline(
+      aes(yintercept = y), 
+      data.frame(y = c(0,cumsum(rep(maxy/3, 3)))),
+      color = "lightgrey"
+    ) + 
+    # Add bars to represent the cumulative track lengths
+    # str_wrap(region, 5) wraps the text so each line has at most 5 characters
+    # (but it doesn't break long words!)
+    geom_col(
+      aes(
+        x = reorder(str_wrap(region, wrap), n), 
+        y = log2(n),
+        fill = ord
+      ),
+      position = "dodge2",
+      show.legend = TRUE,
+      alpha = .9
+    ) + 
+    
+    # Lollipop shaft for mean gain per region
+    geom_segment(
+      aes(
+        x = reorder(str_wrap(region, wrap), n),
+        y = 0,
+        xend = reorder(str_wrap(region, wrap), n),
+        yend = (maxy + maxy*0.1)
+      ),
+      linetype = "dashed",
+      color = "gray25",
+    )  +
+    geom_text(
+      aes(
+        x = reorder(str_wrap(region, wrap), n),
+        y = log2(n) + 0.1,
+        label = n,
+        angle = 360 + (360 * (rank(-(n)) - 0.5) / max(rank(-n))) #360 - (360 * (rank(-seq(n))-0.5)) /length(plot_df$n), 
+      ),
+      position = position_dodge(width = 1),
+      vjust = 0, size = 4, color ="#878787")+ 
+    
+    # Make it circular!
+    coord_polar()+ 
+  
+  # Bonito
+  
+    # New fill and legend title for number of tracks per region
+    scale_fill_gradientn(
+      "Amount of Tracks",
+       colours = rev(c("#cef587", "#90C432", "#2494b5","#03556e"  ))
+    ) +
+    # Make the guide for the fill discrete
+    guides(
+      fill = "none"
+    ) +
+    theme(
+      # Remove axis ticks and text
+      axis.title = element_blank(),
+      axis.ticks = element_blank(),
+      axis.text.y = element_blank(),
+      # Use gray text for the region names
+      axis.text.x = element_text(color = "#878787", size = wrap),
+      # Move the legend to the bottom
+      legend.position = "bottom",
+      #panel.background = element_rect(fill = "white", color = "white"),
+      panel.grid = element_blank(),
+      panel.grid.major.x = element_blank(),
+      panel.background = element_rect(fill = "transparent", color = NA)
+    )
+  
+  
+  return(plt)
+}
+```
+
+
+## Resumen {-}   
+
+A continuación se resumen los resultados del GSEA: 
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
+ID = c("BP", "CC", "MF", "KEGG", "Reactome")
+
+# Obesidad
+Niv = c("IO", "IOM", "IOF", "SDIO" )
+Datasob = sapply(ID, function(x){
+  setNames(sapply(get(load(glue("{DirOut}/Obesidad_gse{x}.RData"))), function(y)
+    data.frame(y), simplify = FALSE),Niv)
+}, simplify=FALSE)
+Countob = sapply(Datasob, function(x) sapply(x, nrow))
+DFOB = t(Countob)
+
+# Diabetes
+Niv = c("ID", "IDM", "IDF", "SDID" )
+DatasDM = sapply(ID, function(x){
+  setNames(sapply(get(load(glue("{DirOut}/Diabetes_gse{x}.RData"))), function(y)
+    data.frame(y), simplify = FALSE),Niv)
+}, simplify=FALSE)
+CountDM = sapply(DatasDM, function(x) sapply(x, nrow))
+DFDM = t(CountDM)
+
+# Tabla:
+Df = cbind(DFOB, DFDM)
+
+```
+
+
+```{r echo=T, eval= TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.align = "center" }
+## Representación
+# Datos:
+Data = data.frame(DB = c("GO: Procesos biológicos",
+                         "GO: Componentes celulares",
+                         "GO: Funciones moleculares",
+                         "Rutas KEGG",
+                         "Rutas Reactome"),
+                  (Df))
+header = data.frame(col_keys = colnames(Data),
+                    H1 = c("DB", rep("Obesidad", 4),rep("Diabetes", 4)),
+                    H2=colnames(Data))
+
+Color1 = "#007FA6"
+Color2 = "#007FA6" 
+Color.l = "black" 
+Color.l2 = "#878787"
+Color.up = "#CB326D"
+Color.down = "#00AFBB" 
+font = "Calibri"
+footer = NULL
+    
+  
+  ## Flextable
+  # Set info
+  ft <- flextable(Data, col_keys = colnames(Data))
+  # Set header
+  ft <- set_header_df(ft, mapping = header, key = "col_keys" )
+  # Format number
+  ft <- colformat_num(ft, big.mark = ".", decimal.mark = "," )
+  # Set footer
+  if(! is.null(footer)){
+    ft <- add_footer(ft, values = footer) %>% 
+      #merge_h(part = "footer")  %>% 
+      bold(j=1, part = "footer") %>%
+      hline(border = fp_border(width = 2, color = Color1), part = "footer")
+  }
+  
+  # Merge headers
+  ft <- merge_h(ft, part = "header") %>% 
+    merge_v( part = "header")
+  
+  # Merge contrastes
+  #ft <- merge_v(ft, j = c(1,2), part = "body")
+  
+  # Horizontal lines 
+  ft <- hline(ft,border = fp_border(width = 2, color = Color1), part = "header")
+  
+  # Outer bottom
+  ft <- hline_bottom(ft, border = fp_border(width = 2, color = Color1))
+  
+  # Alineamiento
+  ft <- flextable::align(ft, align = "center", part = "header")
+  ft <- flextable::align(ft, align = "center", part = "footer")
+  ft <- flextable::align(ft, align = "center", part = "body")
+  
+  # Primera columna alineada
+  ft <- flextable::align(ft, j=1, align = "left", part = "all")
+  
+  
+  # Header design 
+  x = Data[, 1]
+    colors = case_when(
+    x == "Up" ~ Color.up,
+    x == "Down" ~ Color.down,
+    TRUE ~ Color.l2
+  )
+  
+  ft <- fontsize(ft, i = 1:2, size = 12, part = "header") %>%
+    color(i=1, color = Color2, part = "header")  %>%
+    color(i=c(2), color = Color.l2, part = "header") %>%
+    bold( bold = TRUE, part = "header") %>%
+    bold( bold = TRUE, j=1, part = "body")  %>%
+    # Colores chachis x
+    color(j=1, color = colors, part = "body")
+  # Rotate names
+  #ft <- rotate(ft, i = 2, rotation = "btlr", part = "header", align = "bottom")
+  
+  # Font
+  #
+  
+  # Matriz de colores
+   ft<- fontsize(ft,  size = 12, part = "all") %>%
+     font(fontname = font, part = "all")
+ft <-ft %>% flextable::width(width = 0.3)
+
+  # Footer
+  if(! is.null(footer)){
+    ft <- add_footer(ft, values = footer) %>% 
+      merge_h(part = "footer")  %>% 
+      bold(j=1, part = "footer") %>%
+      hline(border = fp_border(width = 2, color = Color1), part = "footer")
+      ft <- flextable::align(ft, align = "right", part = "footer")
+  ft <- flextable::align(ft, j=1, align = "left", part = "footer")
+  }
+
+# Pintamos de gris los valors -
+  colormatrix <- ifelse((as.matrix(Data)) %in% c(0,"0", "-"), Color.l2, Color.l )
+ft <- color(ft, color = colormatrix, part = "body")  %>%
+    color(j=1, color = "black", part = "body")
+ft
+```
+
+
+## Obesidad {-}
+
+En el análisis en base a los procesos biológicos de GO se han obtenido los
+siguientes resultados:
+
+```{r echo=F, eval=preloadData, message=FALSE, warning=FALSE}
+## Obesidad
+# Get data
+Niveles = c("IO" = "Ob - Np",
+            "IOM"="Ob.M - Np.M",
+            "IOF" = "Ob.F - Np.F",
+            "SDIO" = "(Ob.M - Np.M) - (Ob.F-  Np.F)")
+Results = get(load(glue("{DirOut}/Obesidad_gseBP.RData")))
+names(Results) = names(Niveles)
+Resultsob = sapply(Results, function(x)
+  data.frame(x), simplify = FALSE)
+
+Rterms = get(load(glue("{DirData}/reducedTerms.RData")))
+RtermsDM = Rterms[c("IOM", "IOF")]
+```  
+
+```{r echo=T, eval=loadData, message=FALSE, warning=FALSE}
+## Obesidad
+# Get data
+Niveles = c("IO" = "Ob - Np",
+            "IOM"="Ob.M - Np.M",
+            "IOF" = "Ob.F - Np.F",
+            "SDIO" = "(Ob.M - Np.M) - (Ob.F-  Np.F)")
+Results = get(load(glue("{DirOut}/Obesidad_gseBP.RData")))
+names(Results) = names(Niveles)
+Resultsob = sapply(Results, function(x)
+  data.frame(x), simplify = FALSE)
+
+# Recuento
+simMatrix_IOM <- calculateSimMatrix(Resultsob$IOM$ID,
+                                    orgdb="org.Hs.eg.db",
+                                    ont="BP",
+                                    method="Rel")
+simMatrix_IOF <- calculateSimMatrix(Resultsob$IOF$ID,
+                                    orgdb="org.Hs.eg.db",
+                                    ont="BP",
+                                    method="Rel")
+# Reducimos los términos en hombres
+scores_IOM <- setNames(-log10(Resultsob$IOM$p.adjust), Resultsob$IOM$ID)
+reducedTerms_IOM <- reduceSimMatrix(simMatrix_IOM,
+                                    scores_IOM,
+                                    threshold=0.9,
+                                    orgdb="org.Hs.eg.db")
+TB_IOM = sort(table(reducedTerms_IOM$parentTerm), decreasing = TRUE)
+#table(cumsum(TB_IOM) > sum(TB_IOM)*0.75) 
+
+# Obtención de las matrices de similitud
+scores_IOF <- setNames(-log10(Resultsob$IOF$p.adjust), Resultsob$IOF$ID)
+reducedTerms_IOF <- reduceSimMatrix(simMatrix_IOF,
+                                    scores_IOF,
+                                    threshold=0.9,
+                                    orgdb="org.Hs.eg.db")
+sort(table(reducedTerms_IOF$parentTerm), decreasing = TRUE)
+TB_IOF = sort(table(reducedTerms_IOF$parentTerm), decreasing = TRUE)
+#table(cumsum(TB_IOF) > sum(TB_IOF)*0.75)
+
+#Final data
+RtermsOB = list(IOM = reducedTerms_IOM, IOF = reducedTerms_IOF) 
+```  
+
+### Dotplot 
+
+Dotplot de los términos más sobre e infra expresados en los contrastes IOM, IOF y SDIO: 
+  
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10, fig.height= 8}
+# Datos
+Results = Resultsob
+Niv = c("IO", "IOM", "IOF", "SDIO" )
+names(Results) = Niv
+
+# Tomamos los que presentan una mayor sobreexpresión e infraexpresión
+# en mujeres, hombres y SDIO
+# IOM
+DfM = data.frame(Results[[Niv[[2]]]])
+DfM = DfM[order(DfM$NES, decreasing = T), ]
+# Tomamos los 5 de más sobreexpresados e infraexpresados
+nup = ifelse(length(DfM[DfM$NES > 0,]) >5, 5, length(DfM[DfM$NES > 0,]))
+ndown = ifelse(length(DfM[DfM$NES < 0,]) >5, 5, length(DfM[DfM$NES < 0,]))
+M_dots <- DfM[c(1:nup, (nrow(DfM)-(ndown-1)):nrow(DfM)), ]$ID
+
+# IOF
+DfF = data.frame(Results[[Niv[[3]]]])
+DfF = DfF[order(DfF$NES, decreasing = T), ]
+# Tomamos los 5 de más sobreexpresados e infraexpresados
+nup = ifelse(length(DfF[DfF$NES > 0,]) >5, 5, length(DfF[DfF$NES > 0,]))
+ndown = ifelse(length(DfF[DfF$NES < 0,]) >5, 5, length(DfF[DfF$NES < 0,]))
+F_dots <- DfF[c(1:nup, (nrow(DfF)-(ndown-1)):nrow(DfF)), ]$ID
+
+# SDIO
+DfSD = data.frame(Results[[Niv[[4]]]])
+DfSD = DfSD[order(DfSD$NES, decreasing = T), ]
+# Tomamos los 5 de más sobreexpresados e infraexpresados
+nup = ifelse(length(DfSD[DfSD$NES > 0,]) >5, 5, length(DfSD[DfSD$NES > 0,]))
+ndown = ifelse(length(DfSD[DfSD$NES < 0,]) >5, 5, length(DfSD[DfSD$NES < 0,]))
+SD_dots <- DfSD[c(1:nup, (nrow(DfSD)-(ndown-1)):nrow(DfSD)), ]$ID
+
+# Agrupamos los datos
+Dots <- unique(c(M_dots, F_dots, SD_dots)) 
+
+DataM <- DfM[which(DfM$ID %in% Dots),]
+DataM$Cluster <- as.factor(Niv[[2]])
+
+DataF <- DfF[which(DfF$ID %in% Dots),]
+DataF$Cluster <- as.factor(Niv[[3]])
+
+DataSD <- DfSD[which(DfSD$ID %in% Dots),]
+DataSD$Cluster <- as.factor(Niv[[4]])
+
+Data = rbind(DataM, DataF, DataSD)
+Data$Description = str_wrap(str_to_sentence(Data$Description), width = 40) 
+Data <- Data %>%
+  arrange(p.adjust, desc(abs(NES)))
+Data$Direction = ifelse(Data$NES < 0, "logOR<0", "logOR>0") 
+Data$Description = factor((Data$Description),
+                          levels=unique((Data$Description))) 
+
+# Creamos el DotPlot
+DotP = ggplot(Data, aes( reorder(Description, rev(p.adjust)),
+                        Direction)) +
+  geom_point(shape = 21,
+             aes(fill = NES, 
+                 size = setSize,
+                 color = NES, 
+                 alpha = p.adjust)) +  
+  facet_grid(~Cluster) + coord_flip() + xlab("GO: Procesos biológicos") + 
+  ylab("") +
+  scale_fill_gradient(low="#90C433", high="#2494b6") +
+  scale_alpha(range = c(0.8, 0.2)) + 
+  geom_point(shape = 21, stroke = 0.5,
+             aes(color = NES, 
+                 size = setSize),
+             fill = "transparent") +
+  scale_color_gradient(low="#90C433", high="#2494b6", guide = "none") +
+  guides(alpha=guide_legend(override.aes=list(fill=hcl(c(15,195),100,0,
+                                                       alpha=c(0.01, 0.9)),
+                                              size = 4,
+                                              colour="#878787"),
+                            title = "FDR",
+                            order = 2),
+         size = guide_legend(title = "Tamaño del set",
+                            order = 3),
+         fill = guide_colorbar(title = "logOR",
+                               order = 1)) + 
+    theme(plot.background = element_rect(fill="transparent"),
+          panel.background = element_rect(fill = "grey95"),
+          axis.line = element_line(colour = "grey"))
+DotP 
+```
+
+### REVIGO 
+
+A continuación se muestran los resultados para la agrupación de los términos en
+base a la distancia:
+
+#### IOM 
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 12}
+# Representacion de los terminos reducidos
+RX_revigo(Rterms$IOM) 
+```
+
+#### IOF 
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10}
+# Representacion de los terminos reducidos 
+RX_revigo(Rterms$IOF)
+```
+
+## Diabetes {-}  
+
+En el análisis en base a los procesos biológicos de GO se han obtenido los
+siguientes resultados:
+
+```{r echo=F, eval=preloadData, message=FALSE, warning=FALSE}
+## Diabetes
+# Get data
+Niveles = c("ID" = "Ob - Np",
+            "IDM"="Ob.M - Np.M",
+            "IDF" = "Ob.F - Np.F",
+            "SDID" = "(Ob.M - Np.M) - (Ob.F-  Np.F)")
+Results = get(load(glue("{DirOut}/Diabetes_gseBP.RData")))
+names(Results) = names(Niveles)
+ResultsDM = sapply(Results, function(x)
+  data.frame(x), simplify = FALSE)
+
+Rterms = get(load(glue("{DirData}/reducedTerms.RData")))
+RtermsDM = Rterms[c("IDM", "IDF")]
+```  
+
+
+```{r echo=T, eval=loadData, message=FALSE, warning=FALSE}
+## Diabetes
+# Get data
+Niveles = c("ID" = "Ob - Np",
+            "IDM"="Ob.M - Np.M",
+            "IDF" = "Ob.F - Np.F",
+            "SDID" = "(Ob.M - Np.M) - (Ob.F-  Np.F)")
+Results = get(load(glue("{DirOut}/Diabetes_gseBP.RData")))
+names(Results) = names(Niveles)
+ResultsDM = sapply(Results, function(x)
+  data.frame(x), simplify = FALSE)
+
+# Obtención de las matrices de similitud
+simMatrix_IDM <- calculateSimMatrix(ResultsDM$IDM$ID,
+                                    orgdb="org.Hs.eg.db",
+                                    ont="BP",
+                                    method="Rel")
+simMatrix_IDF <- calculateSimMatrix(ResultsDM$IDF$ID,
+                                    orgdb="org.Hs.eg.db",
+                                    ont="BP",
+                                    method="Rel")
+
+# Reducimos los términos en hombres
+scores_IDM <- setNames(-log10(ResultsDM$IDM$p.adjust), ResultsDM$IDM$ID)
+reducedTerms_IDM <- reduceSimMatrix(simMatrix_IDM,
+                                    scores_IDM,
+                                    threshold=0.7,
+                                    orgdb="org.Hs.eg.db")
+TB_IDM = sort(table(reducedTerms_IDM$parentTerm), decreasing = TRUE)
+#table(cumsum(TB_IDM) > sum(TB_IDM)*0.75)
+
+# Reducimos los términos en mujeres
+scores_IDF <- setNames(-log10(ResultsDM$IDF$p.adjust), ResultsDM$IDF$ID)
+reducedTerms_IDF <- reduceSimMatrix(simMatrix_IDF,
+                                    scores_IDF,
+                                    threshold=0.7,
+                                    orgdb="org.Hs.eg.db")
+TB_IDF = sort(table(reducedTerms_IDF$parentTerm), decreasing = TRUE)
+#table(cumsum(TB_IDF) > sum(TB_IDF)*0.75)
+
+#Final data
+RtermsDM = list(IDM = reducedTerms_IDM, IDF = reducedTerms_IDF) 
+```  
+
+### Dotplot 
+
+Dotplot de los términos más sobre e infra expresados en los contrastes 
+IDM, IDF y SDID: 
+  
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10, fig.height= 8}
+# Datos
+Results = ResultsDM
+Niv = c("ID", "IDM", "IDF", "SDID" )
+names(Results) = Niv
+
+# Tomamos los que presentan una mayor sobreexpresión e infraexpresión
+# en mujeres, hombres y SDID
+# IDM
+DfM = data.frame(Results[[Niv[[2]]]])
+DfM = DfM[order(DfM$NES, decreasing = T), ]
+nup = ifelse(length(DfM[DfM$NES > 0,]) >5, 5, length(DfM[DfM$NES > 0,]))
+ndown = ifelse(length(DfM[DfM$NES < 0,]) >5, 5, length(DfM[DfM$NES < 0,]))
+M_dots <- DfM[c(1:nup, (nrow(DfM)-(ndown-1)):nrow(DfM)), ]$ID
+
+# IDF
+DfF = data.frame(Results[[Niv[[3]]]])
+DfF = DfF[order(DfF$NES, decreasing = T), ]
+# Tomamos los 5 de más arribe y más abajo
+nup = ifelse(length(DfF[DfF$NES > 0,]) >5, 5, length(DfF[DfF$NES > 0,]))
+ndown = ifelse(length(DfF[DfF$NES < 0,]) >5, 5, length(DfF[DfF$NES < 0,]))
+F_dots <- DfF[c(1:nup, (nrow(DfF)-(ndown-1)):nrow(DfF)), ]$ID
+
+# SDID
+DfSD = data.frame(Results[[Niv[[4]]]])
+DfSD = DfSD[order(DfSD$NES, decreasing = T), ]
+# Tomamos los 5 de más arribe y más abajo
+nup = ifelse(length(DfSD[DfSD$NES > 0,]) >5, 5, length(DfSD[DfSD$NES > 0,]))
+ndown = ifelse(length(DfSD[DfSD$NES < 0,]) >5, 5, length(DfSD[DfSD$NES < 0,]))
+SD_dots <- DfSD[c(1:nup, (nrow(DfSD)-(ndown-1)):nrow(DfSD)), ]$ID
+
+# Agrupamos los datos
+Dots <- unique(c(M_dots, F_dots, SD_dots)) 
+
+DataM <- DfM[which(DfM$ID %in% Dots),]
+DataM$Cluster <- as.factor(Niv[[2]])
+
+DataF <- DfF[which(DfF$ID %in% Dots),]
+DataF$Cluster <- as.factor(Niv[[3]])
+
+DataSD <- DfSD[which(DfSD$ID %in% Dots),]
+DataSD$Cluster <- as.factor(Niv[[4]])
+
+Data = rbind(DataM, DataF, DataSD)
+Data$Description = str_wrap(capitalize(Data$Description), width = 50) 
+Data <- Data %>%
+  arrange(p.adjust, desc(abs(NES)))
+Data$Direction = ifelse(Data$NES < 0, "logOR<0", "logOR>0") 
+Data$Description = factor((Data$Description), levels=unique((Data$Description))) 
+
+# Creamos el DotPlot
+DotP = ggplot(Data, aes(reorder(Description, rev(p.adjust)), 
+                        Direction)) +
+  geom_point(shape = 21,
+             aes(fill = NES, 
+                 size = setSize,
+                 color = NES, 
+                 alpha = p.adjust)) +  
+  facet_grid(~Cluster) + coord_flip() + xlab("GO: Procesos biológicos") + ylab("") +
+  scale_fill_gradient(low="#2494b6", high="#90C433") +
+  scale_alpha(range = c(0.8, 0.2)) + 
+  geom_point(shape = 21, stroke = 0.5,
+             aes(color = NES, 
+                 size = setSize),
+             fill = "transparent") +
+  scale_color_gradient(low="#2494b5", high="#90C432", guide = "none") +
+  guides(alpha=guide_legend(override.aes=list(fill=hcl(c(15,195),100,0,
+                                                           alpha=c(0.01, 0.9)),
+                                              size = 4,
+                                              colour="#878787"),
+                            title = "FDR",
+                            order = 2),
+         size = guide_legend(title = "Tamaño del set",
+                            order = 3),
+         fill = guide_colorbar(title = "logOR",
+                               order = 1)) + 
+    theme(plot.background = element_rect(fill="transparent"),
+          panel.background = element_rect(fill = "grey95"),
+          axis.line = element_line(colour = "grey"))
+DotP 
+```
+
+### REVIGO 
+
+A continuación se muestran los resultados para la agrupación de los términos en
+base a la distancia:
+
+#### IDM 
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10}
+# Representacion de los terminos reducidos
+RX_revigo(Rterms$IDM) 
+```
+
+#### IDF 
+
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10}
+# Representacion de los terminos reducidos 
+RX_revigo(Rterms$IDF)
+```
+
+***      
+
+&nbsp;  
+

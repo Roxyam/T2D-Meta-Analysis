@@ -1,12 +1,6 @@
 ![](https://capsule-render.vercel.app/api?type=waving&color=gradient&&customColorList=3&height=300&section=header&text=T2D-Meta-Analysis&fontSize=60&animation=fadeIn&fontAlignY=38&desc=Transcriptomic%20landscape%20of%20sex%20differences%20in%20obesity%20and%20T2D&descAlignY=51&descAlign=62)
 
-## Table Of Content 
-
-<style>
-a {
-    color: #6C7E92;
-}
-</style>
+## Table Of Content  
 
 - [Study Information](#study-information)
     - [Motivation](#motivation)
@@ -16,8 +10,11 @@ a {
     - [Description](#description)
 - [Usage](#usage) 
     - [Execution](#execution)
+    - [Help](#help)
 - [Dependencies](#dependencies) 
 
+
+<hr>
 
 ## Study Information
 
@@ -25,7 +22,6 @@ a {
 
 Over the last three decades, the prevalence of type 2 diabetes (T2D) has increased, even up to 56.4% in the younger population, primarily due to the rise in obesity. The clinical and epidemiological sex differences in obesity and T2D have been widely described. However, the underlying molecular mechanisms remain poorly understood. In this meta-analysis, we aimed to identify transcriptomic biomarkers that can provide insights into sex differences in these conditions,  as well as enhance understanding of the underlying mechanisms associated with sex differences through the integration of expression data.
 
-<hr>
 
 ### Design
 
@@ -128,9 +124,9 @@ The results were interpreted and subjected to functional analysis to gain insigh
     
     - **06FunctionalAnalysisReport.Rmd:** This report summarizes the results of the GSEA, including the number of enriched functions by contrast. It also groups the Gene Ontology (GO) biological processes based on their similarity using rrvgo and visualizes the results.
     
-- **03ProcessingReports:** Reports obtained during the processing phase (from 02Scripts/04DifferentialExpression.R and 02Scripts/05MetaAnalysis.R).
+- **03ProcessingReports:** Reports obtained during the processing phase (from _02Scripts/04DifferentialExpression.R_ and _02Scripts/05MetaAnalysis.R_).
 
-- **04ResultsReports:** Reports containing the results obtained from 02Scripts/03ExploratoryAnalysis.Rmd, 02Scripts/05MetaAnalysisReport.Rmd, and 02Scripts/06FunctionalAnalysisReport.Rmd.
+- **04ResultsReports:** Reports containing the results obtained from _02Scripts/03ExploratoryAnalysis.Rmd_, _02Scripts/05MetaAnalysisReport.Rmd_, and _02Scripts/06FunctionalAnalysisReport.Rmd_.
 
 - **Data:** Directory to store the data from various steps of the analysis. It includes the OpenTargets information used for validation.
 
@@ -141,72 +137,63 @@ The results were interpreted and subjected to functional analysis to gain insigh
 
 ## Usage   
 
-This repository has been designed with the aim of both reproducing the current study and extending its functionality for new samples, tissues, or experimental groups.
+This repository is designed to facilitate the reproduction of the current study and enable its extension for new samples, tissues, or experimental groups. The provided R scripts are designed to be applicable to a wide range of data, while the Rmd scripts contain specific steps that require manual review.
 
-The R scripts provided are general and allow for execution on a wide variety of data, while the Rmd scripts include specific steps where manual review is important.
+In the Execution section of each R script, you will find an example instance that can be used to reproduce the current analysis.
 
-In the section:  
 ```r 
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 #------------- Execution
 ```
-An instance has been included to recreate the current analysis.
-
 <br>
 
 ### Execution
 
-The configuration and execution of the scripts can be done either directly from R or from the bash terminal. Below is an example of how to execute the 04DifferentialExpression.R:
+The configuration and execution of the scripts can be performed either directly from R or from the bash terminal. Below is an example of how to execute the _04DifferentialExpression.R_:
 
 
 *R configuration:*
-<br>
 
 ```r 
 args <- parser$parse_args(args = c('-s=c("E_MEXP_1425","GSE2508","GSE20950", \\
                                    "GSE29718", "GSE64567","GSE92405",  \\
                                    "GSE141432","GSE205668")', 
                                    '-v=c("Obesity", "Diabetes")', 
-                                   '-i=/home/rmoldovan/T2D-Meta-Analysis/Data',
-                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/04DE',
+                                   '-i=/Data',
+                                   '-o=/Data/04DE',
                                    '-r',
                                    '-p')) 
-```
-<br>
+``` 
 
-*Command-line arguments* 
-<br>
+*Command-line arguments:* 
 
 ```bash 
 Rscript 04DifferentialExpression.R -s 'c("E_MEXP_1425","GSE2508","GSE20950", "GSE29718", "GSE64567","GSE92405", "GSE141432","GSE205668")' -v 'c("Obesity", "Diabetes")' -i '/home/rmoldovan/T2D-Meta-Analysis/Data' -o '/home/rmoldovan/T2D-Meta-Analysis/04DE' -r -p
 
-```
-<br>
+```   
 
-At the beginning of each script, the functionality and parameters are explained. Additionally, you can use the following command to obtain further information:
+### Help  
+
+At the beginning of each script, you will find detailed explanations of the functionality and parameters. Additionally, you can use the following commands to obtain further information:
+
+*R configuration:*
+
+```r 
+parser$print_help()
+```  
+
+*Command-line arguments:* 
 
 ```bash 
 Rscript 04DifferentialExpression.R --help
-
 ```
 <hr>
 <br>
 
 ### Dependencies   
 
+During the development of this project, the following packages were required:  
 
-In the development of this project, the following packages were required: 
-
-<style>
-table:nth-of-type(1) {
-    display:table;
-    width:50%;
-}
-table:nth-of-type(1) th {
-    text-align: left;
-}
-</style>
-<div align="center">
 
   | Package                   | Version   |
   |---------------------------|-----------|

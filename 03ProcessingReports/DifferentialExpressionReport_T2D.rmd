@@ -1,0 +1,360 @@
+---
+title: "04 Differential expression analysis"
+author: "Roxana Andreea Moldovan Moldovan"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: false
+    toc_float: false
+    number_sections: false 
+    code_folding: hide
+    theme: flatly
+    bg: "#FFFFFF"
+    fg: "#202020"
+    primary: "#90C432"
+    secondary: "#2494b5" 
+  pDT_document:
+    extra_dependencies: "subfig"
+linkcolor: blue
+urlcolor: blue
+citecolor: blue
+header-includes:
+- \usepackage{subfig}
+- \usepackage{float}
+fig_caption: yes 
+link-citations: TRUE 
+---
+        
+## Differential expression analysis {.tabset .tabset-fade -}  
+&nbsp;  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+# Load packages 
+library(pacman)
+pacman::p_load(glue)
+pacman::p_load(DT)
+pacman::p_load(ggpubr)
+pacman::p_load(flextable)
+pacman::p_load(officer)
+pacman::p_load(dplyr)
+pacman::p_load(magick)
+
+# Functions
+#source("Functions/Functions.R")
+Dir = "./Data/DE_Ob" 
+```  
+
+
+&nbsp;  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+# Plot output
+RX_grid_img <- function(paths){
+  grid = NULL
+  for (i in seq(from = 1, to=length(paths), by=2)){
+    a = image = image_read(paths[i])
+    b = image_read(paths[i+1])
+    row = image_append(c(a, b))
+    if(is.null(grid)){
+      grid = row
+    }else{
+      grid = image_append(c(grid,row),  stack = TRUE)
+    } }
+    return(grid)
+    }
+# Output table
+RX_table <- function(Data,
+                     Color1 = "#007FA6",
+                     Color2 = "#007FA6" ,
+                     Color.l = "black" ,
+                     Color.l2 = "#878787",
+                     Color.up = "#CB326D",
+                     Color.down = "#00AFBB",
+                     footer = NULL,
+                     font = "Calibri"){
+    
+  cols=colnames(Data)[-c(1,2)] # Columns with info
+  col_keys = colnames(Data) # Unique names
+  # Header
+  header = data.frame(col_keys = col_keys,
+                      H1 = c("Contraste", "Contraste", rep("Estudios", length(cols))),
+                      H2 = c("Contraste", "Contraste", cols)
+                      )
+  
+  ## Flextable
+  # Set info
+  ft <- flextable(Data, col_keys = colnames(Data))
+  # Set header
+  ft <- set_header_df(ft, mapping = header, key = "col_keys" )
+  # Format number
+  ft <- colformat_num(ft, big.mark = ".", decimal.mark = "," )
+  # Set footer
+  if(! is.null(footer)){
+    ft <- add_footer(ft, values = footer) %>% 
+      merge_h(part = "footer")  %>% 
+      bold(j=1, part = "footer") %>%
+      hline(border = fp_border(width = 2, color = Color1), part = "footer")
+  }
+  
+  # Merge headers
+  ft <- merge_h(ft, part = "header") %>% 
+    merge_v( part = "header")
+  
+  # Merge contrastes
+  ft <- merge_v(ft, j = c(1,2), part = "body")
+  
+  # Horizontal lines
+  ft <- hline(ft, i=seq(from=3, to=nrow(Data), by=3),
+              border = fp_border(width = 1, color = Color.l2), part="body")
+  ft <- hline(ft,border = fp_border(width = 2, color = Color1), part = "header")
+  
+  # Outer bottom
+  ft <- hline_bottom(ft, border = fp_border(width = 2, color = Color1))
+  
+  # Alineamiento
+  ft <- flextable::align(ft, align = "center", part = "header")
+  ft <- flextable::align(ft, align = "right", part = "footer")
+  ft <- flextable::align(ft, j=1, align = "left", part = "footer")
+  
+  
+  # Header design
+  ft <- fontsize(ft, i = 1:2, size = 12, part = "header") %>%
+    color(i=1, color = Color2, part = "header") %>%
+    color(i=2, color = Color.l2, part = "header") %>%
+    bold(i=1, bold = TRUE, part = "header")
+  # Rotate names
+  #ft <- rotate(ft, i = 2, rotation = "btlr", part = "header", align = "bottom")
+  
+  # Font
+  #font(ft, fontname = font, part = "all")
+  
+  # Matriz de colores
+  colormatrix <- ifelse(Data[, cols] == 0, Color.l2, Color.l )
+  # Color
+  ft <- color(ft, j=cols, color = colormatrix, part = "body") 
+  # Color
+  x = Data[, 2]
+  colors = case_when(
+    x == "Up" ~ Color.up,
+    x == "Down" ~ Color.down,
+    TRUE ~ Color.l
+  )
+  ft <- color(ft, j=2, color = colors, part = "body") %>%
+    bold(j=2, bold = TRUE, part = "body")
+  return(ft)
+    
+}
+```  
+
+
+&nbsp;  
+
+
+### Obesity  
+&nbsp;  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+# Read data
+Res = get(load(glue("{Dir}/DifferentialExpressionObesity.RData")))
+St = names(Res)
+Toptabs = sapply(names(Res), 
+                 function(est) sapply(names(Res[[est]]), 
+                                      function(tis) sapply(Res[[est]][[tis]], 
+                                                           function(x) x$TopTab, 
+                                                           simplify = FALSE),
+                                      simplify = FALSE),
+                 simplify = FALSE) 
+Plots = sapply(names(Res), 
+                 function(est) sapply(names(Res[[est]]), 
+                                      function(tis) sapply(Res[[est]][[tis]], 
+                                                           function(x) x$Plot, 
+                                                           simplify = FALSE),
+                                      simplify = FALSE),
+                 simplify = FALSE) 
+```  
+
+
+&nbsp;  
+
+
+#### SAT  {.tabset .tabset-fade -}  
+
+&nbsp;  
+
+##### Summary  {-}  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+
+Toptabs_tis = sapply(Toptabs, 
+           function(x) x[names(x) == "SAT"],
+           simplify = FALSE, USE.NAMES = TRUE) 
+
+Simp = sapply(Toptabs_tis, function(x) RX_ifelse(is.null(x$SAT[1]), NULL, x$SAT),
+              simplify = FALSE) 
+Toptabs_tis = Filter(Negate(is.null), Simp)
+
+Toptabs_tis_sig = sapply(Toptabs_tis, 
+           function(x) sapply(x, 
+                              function(x1) x1[x1$"adj.P.Val" <= 0.05,],
+                              simplify = FALSE, USE.NAMES = TRUE),
+           simplify = FALSE, USE.NAMES = TRUE) 
+
+Resume_tis = sapply(Toptabs_tis_sig, 
+                    function(x) sapply(x, 
+                              function(x1){ up = length(which(x1$logFC > 0))
+                                            down = length(which(x1$logFC < 0))
+                                            return(c(up,down, sum(up,down)))},
+                              simplify = FALSE, USE.NAMES = TRUE),
+           simplify = FALSE, USE.NAMES = TRUE)
+
+rows = unlist(sapply(Resume_tis, function(x) names(x), USE.NAMES = TRUE, simplify = FALSE))
+rows = unique(rows)
+# Sep
+cols = names(Resume_tis)
+
+DT_tis0 = sapply(cols,
+                 function(col) sapply(rows,
+                                      function(row) RX_ifelse(is.null(Resume_tis[[col]][[row]]), rep("-", 3), Resume_tis[[col]][[row]]),
+                                      USE.NAMES = T),
+                 USE.NAMES = T)
+DT_tis = data.frame("Contrast" = rep(rows, each = 3),
+                    "Direction" = rep(c("Up", "Down", "Total"), times = length(rows)),
+                    DT_tis0)
+#datatable(DT_tis0, caption = "Differential expression results SAT")
+foot = sapply(names(Toptabs_tis), function(x) nrow(Toptabs_tis[[x]][[1]]))
+val = c("Total number of genes", "Total number of genes",foot)
+names(val)[1:2] = c("Contrast", "Direction")
+RX_table(DT_tis, footer = val) # OUT
+```  
+
+
+&nbsp;  
+
+
+***  
+
+##### Plots  {.tabset .tabset-fade -}  
+
+
+###### E_MEXP_1425  {-}  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.align="center"}
+
+contrasts = c('Ob-Np', 'Ob.M-Np.M', 'Ob.F-Np.F', '(Ob.M-Np.M)-(Ob.F-Np.F)')
+paths = glue("{Dir}/Plots/E_MEXP_1425_SAT_{contrasts}.svg")
+RX_grid_img(paths)
+
+```  
+
+
+&nbsp;  
+
+
+***  
+
+###### GSE2508  {-}  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.align="center"}
+
+contrasts = c('Ob-Np', 'Ob.M-Np.M', 'Ob.F-Np.F', '(Ob.M-Np.M)-(Ob.F-Np.F)')
+paths = glue("{Dir}/Plots/GSE2508_SAT_{contrasts}.svg")
+RX_grid_img(paths)
+
+```  
+
+
+&nbsp;  
+
+
+***  
+
+###### GSE29718  {-}  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.align="center"}
+
+contrasts = c('Ob-Np', 'Ob.M-Np.M', 'Ob.F-Np.F', '(Ob.M-Np.M)-(Ob.F-Np.F)')
+paths = glue("{Dir}/Plots/GSE29718_SAT_{contrasts}.svg")
+RX_grid_img(paths)
+
+```  
+
+
+&nbsp;  
+
+
+***  
+
+###### GSE64567  {-}  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.align="center"}
+
+contrasts = c('Ob-Np', 'Ob.M-Np.M', 'Ob.F-Np.F', '(Ob.M-Np.M)-(Ob.F-Np.F)')
+paths = glue("{Dir}/Plots/GSE64567_SAT_{contrasts}.svg")
+RX_grid_img(paths)
+
+```  
+
+
+&nbsp;  
+
+
+***  
+
+###### GSE92405  {-}  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.align="center"}
+
+contrasts = c('Ob-Np', 'Ob.M-Np.M', 'Ob.F-Np.F', '(Ob.M-Np.M)-(Ob.F-Np.F)')
+paths = glue("{Dir}/Plots/GSE92405_SAT_{contrasts}.svg")
+RX_grid_img(paths)
+
+```  
+
+
+&nbsp;  
+
+
+***  
+
+###### GSE141432  {-}  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.align="center"}
+
+contrasts = c('Ob-Np', 'Ob.M-Np.M', 'Ob.F-Np.F', '(Ob.M-Np.M)-(Ob.F-Np.F)')
+paths = glue("{Dir}/Plots/GSE141432_SAT_{contrasts}.svg")
+RX_grid_img(paths)
+
+```  
+
+
+&nbsp;  
+
+
+***  
+
+###### GSE205668  {-}  
+
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, fig.align="center"}
+
+contrasts = c('Ob-Np', 'Ob.M-Np.M', 'Ob.F-Np.F', '(Ob.M-Np.M)-(Ob.F-Np.F)')
+paths = glue("{Dir}/Plots/GSE205668_SAT_{contrasts}.svg")
+RX_grid_img(paths)
+
+```  
+
+
+&nbsp;  
+
+
+***  

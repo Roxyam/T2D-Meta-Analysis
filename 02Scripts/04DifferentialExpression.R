@@ -66,6 +66,13 @@ parser$add_argument("-v", "--vars",
                     default="Group", 
                     help="Variable or variables to use in the
                           differential expression.")
+# Tissue
+parser$add_argument("-t", "--tissue",
+                    action="store",
+                    type="character",
+                    default=NULL, 
+                    help="Tissues to be included, by default all.")
+
 # Covariables
 parser$add_argument("-c", "--covars",
                     action="store",
@@ -105,18 +112,29 @@ parser$add_argument("-p", "--plot",
 
 #------------- Execution
 #parser$print_help()
-#args <- parser$parse_args(args = c('-s=c("E_MEXP_1425","GSE2508","GSE20950", \\
-#                                   "GSE29718", "GSE64567","GSE92405",  \\
-#                                   "GSE141432","GSE205668")', 
-#                                   '-v=c("Obesity", "Diabetes")', 
-#                                   '-i=/home/rmoldovan/T2D-Meta-Analysis/Data',
-#                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/Data/04DE',
-#                                   '-r',
-#                                   '-p')) 
-#
+# args <- parser$parse_args(args = c('-s=c("E_MEXP_1425","GSE2508","GSE20950", \\
+#                                    "GSE29718", "GSE64567","GSE92405",  \\
+#                                    "GSE141432","GSE205668")', 
+#                                    '-v=c("Obesity")', 
+#                                    '-t=c("SAT")', 
+#                                    '-i=./Data',
+#                                    '-o=./Data/DE_Ob',
+#                                    '-r',
+#                                    '-p')) 
+# args <- parser$parse_args(args = c('-s=c("E_MEXP_1425","GSE2508","GSE20950", \\
+#                                    "GSE29718", "GSE64567","GSE92405",  \\
+#                                    "GSE141432","GSE205668")', 
+#                                    '-v=c("Obesity")', 
+#                                    '-t=c("SAT")', 
+#                                    '-i=./Data',
+#                                    '-o=./Data/DE_Ob',
+#                                    '-r',
+#                                    '-p')) 
+
 #------------- Prepare arguments
 args$studies = eval(parse(text=(args$studies)))
 args$vars = eval(parse(text=(args$vars)))
+args$tissue = eval(parse(text=(args$tissue)))
 report_out = glue("{args$outdir}/DifferentialExpressionReport.rmd")
 
 # Output directory
@@ -147,7 +165,7 @@ for (var in args$vars){
     Data = get(load(glue("{DirRData}/finalData.RData"))[[1]])
     try({      
       # Compute the differential expression
-      Res <- RX_DiffExpFinal(Data, var1 = var, var2="Gender", covar = args$covars)
+      Res <- RX_DiffExpFinal(Data, var1 = var, var2="Sex", covar = args$covars)
       # Add the annotation
       if(class(Data) == "ExpressionSet"){
         anotData = fData(Data)  
@@ -223,8 +241,8 @@ link-citations: TRUE
       append = FALSE
   )
   
-  ## Análisis de expresión diferencial {.tabset .tabset-fade -} 
-  cat('\n## Análisis de expresión diferencial {.tabset .tabset-fade -}  \n',
+  ## Differential expression analysis {.tabset .tabset-fade -} 
+  cat('\n## Differential expression analysis {.tabset .tabset-fade -}  \n',
       '&nbsp;  \n\n',
       sep ="",
       file = report_out,
@@ -281,7 +299,7 @@ RX_table <- function(Data,
                      font = "Calibri"){
     
   cols=colnames(Data)[-c(1,2)] # Columns with info
-  col_keys = colnames(Data) # Nombres unicos de las columnas
+  col_keys = colnames(Data) # Unique names
   # Header
   header = data.frame(col_keys = col_keys,
                       H1 = c("Contraste", "Contraste", rep("Estudios", length(cols))),
@@ -391,8 +409,13 @@ RX_table <- function(Data,
       file = report_out,
       append = TRUE)
     
-    # Take all tissues
-    Tissues = unique(unlist(sapply(Results, function(x) names(x)), use.names = FALSE))
+    if(is.null(args$tissue)){
+      # Take all tissues
+      Tissues = unique(unlist(sapply(Results, function(x) names(x)), use.names = FALSE))
+    }else{
+      Tissues = args$tissue
+    }
+
     for (tis in Tissues){
       # Number of tissues
       nSt = sum(sapply(Results, function(x)  ! is.null(x[[tis]])))
@@ -400,7 +423,7 @@ RX_table <- function(Data,
         # Title
         '\n#### ',tis,'  {.tabset .tabset-fade -}  \n',
         '\n&nbsp;  \n',
-        '\n##### Tabla  {-}  \n\n',
+        '\n##### Summary  {-}  \n\n',
         # Open chunk
         '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}\n\n',
         'Toptabs_tis = sapply(Toptabs, 
@@ -438,9 +461,9 @@ DT_tis0 = sapply(cols,
 DT_tis = data.frame("Contrast" = rep(rows, each = 3),
                     "Direction" = rep(c("Up", "Down", "Total"), times = length(rows)),
                     DT_tis0)
-#datatable(DT_tis0, caption = "Resultados expresión diferencial ', tis,'")
+#datatable(DT_tis0, caption = "Differential expression results ', tis,'")
 foot = sapply(names(Toptabs_tis), function(x) nrow(Toptabs_tis[[x]][[1]]))
-val = c("Nº total de genes", "Nº total de genes",foot)
+val = c("Total number of genes", "Total number of genes",foot)
 names(val)[1:2] = c("Contrast", "Direction")
 RX_table(DT_tis, footer = val) # OUT', 
         # Close chunk
@@ -459,7 +482,7 @@ RX_table(DT_tis, footer = val) # OUT',
         append = TRUE)
       for (St in args$studies){
         
-        # Recorremos los contrastes por tejido
+        # Contrasts per tissue
         contrasts = names(Results[[St]][[tis]]) 
         if(!is.null(contrasts)){
         cat(

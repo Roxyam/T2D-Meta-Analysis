@@ -31,7 +31,7 @@ loadData = FALSE
 preloadData = TRUE 
 ```
 
-# Resumen GSEA {.tabset .tabset-fade -}
+# GSEA summary {.tabset .tabset-fade -}
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, results = "hide"}
 # Packages
@@ -50,14 +50,14 @@ pacman::p_load(sf)
 pacman::p_load(stringr)  
 
 #Params
-DirBase = "/home/rmoldovan/T2D-Meta-Analysis"
-DirData = glue("{DirBase}/Data")
+DirBase = "./"
+DirData = glue("{DirBase}/Data_no")
 DirOut = glue("{DirData}/FA") 
 ```  
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
 # Functions
-source("/Functions/Functions.R")
+source("../Functions/Functions.R")
 
 RX_revigo <- function(reducedTerms,
                       wrap = 11){
@@ -114,7 +114,6 @@ RX_revigo <- function(reducedTerms,
     # Make it circular!
     coord_polar()+ 
   
-  # Bonito
   
     # New fill and legend title for number of tracks per region
     scale_fill_gradientn(
@@ -146,17 +145,17 @@ RX_revigo <- function(reducedTerms,
 ```
 
 
-## Resumen {-}   
+## Summary {-}   
 
-A continuación se resumen los resultados del GSEA: 
+The GSEA results are summarised below:  
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
 ID = c("BP", "CC", "MF", "KEGG", "Reactome")
 
-# Obesidad
+# Obesity
 Niv = c("IO", "IOM", "IOF", "SDIO" )
 Datasob = sapply(ID, function(x){
-  setNames(sapply(get(load(glue("{DirOut}/Obesidad_gse{x}.RData"))), function(y)
+  setNames(sapply(get(load(glue("{DirOut}/Obesity_gse{x}.RData"))), function(y)
     data.frame(y), simplify = FALSE),Niv)
 }, simplify=FALSE)
 Countob = sapply(Datasob, function(x) sapply(x, nrow))
@@ -165,29 +164,29 @@ DFOB = t(Countob)
 # Diabetes
 Niv = c("ID", "IDM", "IDF", "SDID" )
 DatasDM = sapply(ID, function(x){
-  setNames(sapply(get(load(glue("{DirOut}/Diabetes_gse{x}.RData"))), function(y)
+  setNames(sapply(get(load(glue("{DirOut}/FA_gse{x}.RData"))), function(y)
     data.frame(y), simplify = FALSE),Niv)
 }, simplify=FALSE)
 CountDM = sapply(DatasDM, function(x) sapply(x, nrow))
 DFDM = t(CountDM)
 
-# Tabla:
+# Table:
 Df = cbind(DFOB, DFDM)
 
 ```
 
 
 ```{r echo=T, eval= TRUE, message=FALSE, warning=FALSE, fig.width=12, fig.align = "center" }
-## Representación
-# Datos:
-Data = data.frame(DB = c("GO: Procesos biológicos",
-                         "GO: Componentes celulares",
-                         "GO: Funciones moleculares",
-                         "Rutas KEGG",
-                         "Rutas Reactome"),
+## Representation
+# Data:
+Data = data.frame(DB = c("GO: Biological processes",
+                         "GO: Cellular components",
+                         "GO: Molecular functions",
+                         "KEGG Pathways",
+                         "Reactome Pathways"),
                   (Df))
 header = data.frame(col_keys = colnames(Data),
-                    H1 = c("DB", rep("Obesidad", 4),rep("Diabetes", 4)),
+                    H1 = c("DB", rep("Obesity", 4),rep("Diabetes", 4)),
                     H2=colnames(Data))
 
 Color1 = "#007FA6"
@@ -258,7 +257,7 @@ footer = NULL
   # Font
   #
   
-  # Matriz de colores
+  # Color matrix
    ft<- fontsize(ft,  size = 12, part = "all") %>%
      font(fontname = font, part = "all")
 ft <-ft %>% flextable::width(width = 0.3)
@@ -273,7 +272,7 @@ ft <-ft %>% flextable::width(width = 0.3)
   ft <- flextable::align(ft, j=1, align = "left", part = "footer")
   }
 
-# Pintamos de gris los valors -
+# We paint the values grey -
   colormatrix <- ifelse((as.matrix(Data)) %in% c(0,"0", "-"), Color.l2, Color.l )
 ft <- color(ft, color = colormatrix, part = "body")  %>%
     color(j=1, color = "black", part = "body")
@@ -281,40 +280,39 @@ ft
 ```
 
 
-## Obesidad {-}
+## Obesity {-}
 
-En el análisis en base a los procesos biológicos de GO se han obtenido los
-siguientes resultados:
+The following results were obtained in the analysis on the basis of the Biological processes of GO:
 
 ```{r echo=F, eval=preloadData, message=FALSE, warning=FALSE}
-## Obesidad
+## Obesity
 # Get data
 Niveles = c("IO" = "Ob - Np",
             "IOM"="Ob.M - Np.M",
             "IOF" = "Ob.F - Np.F",
             "SDIO" = "(Ob.M - Np.M) - (Ob.F-  Np.F)")
-Results = get(load(glue("{DirOut}/Obesidad_gseBP.RData")))
+Results = get(load(glue("{DirOut}/Obesity_gseBP.RData")))
 names(Results) = names(Niveles)
 Resultsob = sapply(Results, function(x)
   data.frame(x), simplify = FALSE)
 
-Rterms = get(load(glue("{DirData}/reducedTerms.RData")))
+Rterms = get(load(glue("{DirOut}/Ob_reducedTerms.RData")))
 RtermsDM = Rterms[c("IOM", "IOF")]
 ```  
 
 ```{r echo=T, eval=loadData, message=FALSE, warning=FALSE}
-## Obesidad
+## Obesity
 # Get data
 Niveles = c("IO" = "Ob - Np",
             "IOM"="Ob.M - Np.M",
             "IOF" = "Ob.F - Np.F",
             "SDIO" = "(Ob.M - Np.M) - (Ob.F-  Np.F)")
-Results = get(load(glue("{DirOut}/Obesidad_gseBP.RData")))
+Results = get(load(glue("{DirOut}/Obesity_gseBP.RData")))
 names(Results) = names(Niveles)
 Resultsob = sapply(Results, function(x)
   data.frame(x), simplify = FALSE)
 
-# Recuento
+# Count
 simMatrix_IOM <- calculateSimMatrix(Resultsob$IOM$ID,
                                     orgdb="org.Hs.eg.db",
                                     ont="BP",
@@ -323,7 +321,7 @@ simMatrix_IOF <- calculateSimMatrix(Resultsob$IOF$ID,
                                     orgdb="org.Hs.eg.db",
                                     ont="BP",
                                     method="Rel")
-# Reducimos los términos en hombres
+# We reduce the terms in  males
 scores_IOM <- setNames(-log10(Resultsob$IOM$p.adjust), Resultsob$IOM$ID)
 reducedTerms_IOM <- reduceSimMatrix(simMatrix_IOM,
                                     scores_IOM,
@@ -332,7 +330,7 @@ reducedTerms_IOM <- reduceSimMatrix(simMatrix_IOM,
 TB_IOM = sort(table(reducedTerms_IOM$parentTerm), decreasing = TRUE)
 #table(cumsum(TB_IOM) > sum(TB_IOM)*0.75) 
 
-# Obtención de las matrices de similitud
+# Obtaining the similarity matrices
 scores_IOF <- setNames(-log10(Resultsob$IOF$p.adjust), Resultsob$IOF$ID)
 reducedTerms_IOF <- reduceSimMatrix(simMatrix_IOF,
                                     scores_IOF,
@@ -344,25 +342,26 @@ TB_IOF = sort(table(reducedTerms_IOF$parentTerm), decreasing = TRUE)
 
 #Final data
 RtermsOB = list(IOM = reducedTerms_IOM, IOF = reducedTerms_IOF) 
+save(RtermsOB, file=glue("{DirOut}/Ob_reducedTerms.RData"))
 ```  
 
 ### Dotplot 
 
-Dotplot de los términos más sobre e infra expresados en los contrastes IOM, IOF y SDIO: 
+Dotplot of the most over- and under-expressed terms in the IOM, IOF and SDIO contrasts:  
   
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10, fig.height= 8}
-# Datos
+# Data
 Results = Resultsob
 Niv = c("IO", "IOM", "IOF", "SDIO" )
 names(Results) = Niv
 
-# Tomamos los que presentan una mayor sobreexpresión e infraexpresión
-# en mujeres, hombres y SDIO
+# We took those with the most over- and under-expression
+# in females, males and SDIO
 # IOM
 DfM = data.frame(Results[[Niv[[2]]]])
 DfM = DfM[order(DfM$NES, decreasing = T), ]
-# Tomamos los 5 de más sobreexpresados e infraexpresados
+# We take the 5 most overexpressed and underexpressed ones
 nup = ifelse(length(DfM[DfM$NES > 0,]) >5, 5, length(DfM[DfM$NES > 0,]))
 ndown = ifelse(length(DfM[DfM$NES < 0,]) >5, 5, length(DfM[DfM$NES < 0,]))
 M_dots <- DfM[c(1:nup, (nrow(DfM)-(ndown-1)):nrow(DfM)), ]$ID
@@ -370,7 +369,7 @@ M_dots <- DfM[c(1:nup, (nrow(DfM)-(ndown-1)):nrow(DfM)), ]$ID
 # IOF
 DfF = data.frame(Results[[Niv[[3]]]])
 DfF = DfF[order(DfF$NES, decreasing = T), ]
-# Tomamos los 5 de más sobreexpresados e infraexpresados
+# We take the 5 most overexpressed and underexpressed ones
 nup = ifelse(length(DfF[DfF$NES > 0,]) >5, 5, length(DfF[DfF$NES > 0,]))
 ndown = ifelse(length(DfF[DfF$NES < 0,]) >5, 5, length(DfF[DfF$NES < 0,]))
 F_dots <- DfF[c(1:nup, (nrow(DfF)-(ndown-1)):nrow(DfF)), ]$ID
@@ -378,12 +377,12 @@ F_dots <- DfF[c(1:nup, (nrow(DfF)-(ndown-1)):nrow(DfF)), ]$ID
 # SDIO
 DfSD = data.frame(Results[[Niv[[4]]]])
 DfSD = DfSD[order(DfSD$NES, decreasing = T), ]
-# Tomamos los 5 de más sobreexpresados e infraexpresados
+# We take the 5 most overexpressed and underexpressed ones
 nup = ifelse(length(DfSD[DfSD$NES > 0,]) >5, 5, length(DfSD[DfSD$NES > 0,]))
 ndown = ifelse(length(DfSD[DfSD$NES < 0,]) >5, 5, length(DfSD[DfSD$NES < 0,]))
 SD_dots <- DfSD[c(1:nup, (nrow(DfSD)-(ndown-1)):nrow(DfSD)), ]$ID
 
-# Agrupamos los datos
+# We aggregate the data
 Dots <- unique(c(M_dots, F_dots, SD_dots)) 
 
 DataM <- DfM[which(DfM$ID %in% Dots),]
@@ -403,7 +402,7 @@ Data$Direction = ifelse(Data$NES < 0, "logOR<0", "logOR>0")
 Data$Description = factor((Data$Description),
                           levels=unique((Data$Description))) 
 
-# Creamos el DotPlot
+# DotPlot
 DotP = ggplot(Data, aes( reorder(Description, rev(p.adjust)),
                         Direction)) +
   geom_point(shape = 21,
@@ -411,7 +410,7 @@ DotP = ggplot(Data, aes( reorder(Description, rev(p.adjust)),
                  size = setSize,
                  color = NES, 
                  alpha = p.adjust)) +  
-  facet_grid(~Cluster) + coord_flip() + xlab("GO: Procesos biológicos") + 
+  facet_grid(~Cluster) + coord_flip() + xlab("GO: Biological processes") + 
   ylab("") +
   scale_fill_gradient(low="#90C433", high="#2494b6") +
   scale_alpha(range = c(0.8, 0.2)) + 
@@ -426,7 +425,7 @@ DotP = ggplot(Data, aes( reorder(Description, rev(p.adjust)),
                                               colour="#878787"),
                             title = "FDR",
                             order = 2),
-         size = guide_legend(title = "Tamaño del set",
+         size = guide_legend(title = "Set size",
                             order = 3),
          fill = guide_colorbar(title = "logOR",
                                order = 1)) + 
@@ -438,27 +437,26 @@ DotP
 
 ### REVIGO 
 
-A continuación se muestran los resultados para la agrupación de los términos en
-base a la distancia:
+The results for the grouping of the terms based on distance are shown below
+based on distance:
 
 #### IOM 
 
-```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 12}
-# Representacion de los terminos reducidos
-RX_revigo(Rterms$IOM) 
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10, fig.height= 8}
+# Representation of reduced terms
+RX_revigo(RtermsOB$IOM) 
 ```
 
 #### IOF 
 
-```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10}
-# Representacion de los terminos reducidos 
-RX_revigo(Rterms$IOF)
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10, fig.height= 8}
+# Representation of reduced terms 
+RX_revigo(RtermsOB$IOF)
 ```
 
 ## Diabetes {-}  
 
-En el análisis en base a los procesos biológicos de GO se han obtenido los
-siguientes resultados:
+The following results were obtained in the analysis on the basis of the Biological processes of GO:
 
 ```{r echo=F, eval=preloadData, message=FALSE, warning=FALSE}
 ## Diabetes
@@ -467,12 +465,12 @@ Niveles = c("ID" = "Ob - Np",
             "IDM"="Ob.M - Np.M",
             "IDF" = "Ob.F - Np.F",
             "SDID" = "(Ob.M - Np.M) - (Ob.F-  Np.F)")
-Results = get(load(glue("{DirOut}/Diabetes_gseBP.RData")))
+Results = get(load(glue("{DirOut}/FA_gseBP.RData")))
 names(Results) = names(Niveles)
 ResultsDM = sapply(Results, function(x)
   data.frame(x), simplify = FALSE)
 
-Rterms = get(load(glue("{DirData}/reducedTerms.RData")))
+Rterms = get(load(glue("{DirOut}/T2D_reducedTerms.RData")))
 RtermsDM = Rterms[c("IDM", "IDF")]
 ```  
 
@@ -484,12 +482,12 @@ Niveles = c("ID" = "Ob - Np",
             "IDM"="Ob.M - Np.M",
             "IDF" = "Ob.F - Np.F",
             "SDID" = "(Ob.M - Np.M) - (Ob.F-  Np.F)")
-Results = get(load(glue("{DirOut}/Diabetes_gseBP.RData")))
+Results = get(load(glue("{DirOut}/FA_gseBP.RData")))
 names(Results) = names(Niveles)
 ResultsDM = sapply(Results, function(x)
   data.frame(x), simplify = FALSE)
 
-# Obtención de las matrices de similitud
+# Obtaining the similarity matrices
 simMatrix_IDM <- calculateSimMatrix(ResultsDM$IDM$ID,
                                     orgdb="org.Hs.eg.db",
                                     ont="BP",
@@ -499,42 +497,43 @@ simMatrix_IDF <- calculateSimMatrix(ResultsDM$IDF$ID,
                                     ont="BP",
                                     method="Rel")
 
-# Reducimos los términos en hombres
+# We reduce the terms in  males
 scores_IDM <- setNames(-log10(ResultsDM$IDM$p.adjust), ResultsDM$IDM$ID)
 reducedTerms_IDM <- reduceSimMatrix(simMatrix_IDM,
                                     scores_IDM,
-                                    threshold=0.7,
+                                    threshold=0.75,
                                     orgdb="org.Hs.eg.db")
 TB_IDM = sort(table(reducedTerms_IDM$parentTerm), decreasing = TRUE)
 #table(cumsum(TB_IDM) > sum(TB_IDM)*0.75)
 
-# Reducimos los términos en mujeres
+# We reduce the terms in  females
 scores_IDF <- setNames(-log10(ResultsDM$IDF$p.adjust), ResultsDM$IDF$ID)
 reducedTerms_IDF <- reduceSimMatrix(simMatrix_IDF,
                                     scores_IDF,
-                                    threshold=0.7,
+                                    threshold=0.75,
                                     orgdb="org.Hs.eg.db")
 TB_IDF = sort(table(reducedTerms_IDF$parentTerm), decreasing = TRUE)
 #table(cumsum(TB_IDF) > sum(TB_IDF)*0.75)
 
 #Final data
 RtermsDM = list(IDM = reducedTerms_IDM, IDF = reducedTerms_IDF) 
+save(RtermsDM, file=glue("{DirOut}/T2D_reducedTerms.RData"))
 ```  
 
 ### Dotplot 
 
-Dotplot de los términos más sobre e infra expresados en los contrastes 
-IDM, IDF y SDID: 
+Dotplot of the most over- and under-expressed terms in the contrasts 
+IDM, IDF and SDID:  
   
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10, fig.height= 8}
-# Datos
+# Data
 Results = ResultsDM
 Niv = c("ID", "IDM", "IDF", "SDID" )
 names(Results) = Niv
 
-# Tomamos los que presentan una mayor sobreexpresión e infraexpresión
-# en mujeres, hombres y SDID
+# We took those with the most over- and under-expression
+# in females, males and SDID
 # IDM
 DfM = data.frame(Results[[Niv[[2]]]])
 DfM = DfM[order(DfM$NES, decreasing = T), ]
@@ -545,7 +544,7 @@ M_dots <- DfM[c(1:nup, (nrow(DfM)-(ndown-1)):nrow(DfM)), ]$ID
 # IDF
 DfF = data.frame(Results[[Niv[[3]]]])
 DfF = DfF[order(DfF$NES, decreasing = T), ]
-# Tomamos los 5 de más arribe y más abajo
+# We take the 5 above and below
 nup = ifelse(length(DfF[DfF$NES > 0,]) >5, 5, length(DfF[DfF$NES > 0,]))
 ndown = ifelse(length(DfF[DfF$NES < 0,]) >5, 5, length(DfF[DfF$NES < 0,]))
 F_dots <- DfF[c(1:nup, (nrow(DfF)-(ndown-1)):nrow(DfF)), ]$ID
@@ -553,12 +552,12 @@ F_dots <- DfF[c(1:nup, (nrow(DfF)-(ndown-1)):nrow(DfF)), ]$ID
 # SDID
 DfSD = data.frame(Results[[Niv[[4]]]])
 DfSD = DfSD[order(DfSD$NES, decreasing = T), ]
-# Tomamos los 5 de más arribe y más abajo
+# We take the 5 above and below
 nup = ifelse(length(DfSD[DfSD$NES > 0,]) >5, 5, length(DfSD[DfSD$NES > 0,]))
 ndown = ifelse(length(DfSD[DfSD$NES < 0,]) >5, 5, length(DfSD[DfSD$NES < 0,]))
 SD_dots <- DfSD[c(1:nup, (nrow(DfSD)-(ndown-1)):nrow(DfSD)), ]$ID
 
-# Agrupamos los datos
+# We aggregate the data
 Dots <- unique(c(M_dots, F_dots, SD_dots)) 
 
 DataM <- DfM[which(DfM$ID %in% Dots),]
@@ -577,7 +576,7 @@ Data <- Data %>%
 Data$Direction = ifelse(Data$NES < 0, "logOR<0", "logOR>0") 
 Data$Description = factor((Data$Description), levels=unique((Data$Description))) 
 
-# Creamos el DotPlot
+# DotPlot
 DotP = ggplot(Data, aes(reorder(Description, rev(p.adjust)), 
                         Direction)) +
   geom_point(shape = 21,
@@ -585,7 +584,7 @@ DotP = ggplot(Data, aes(reorder(Description, rev(p.adjust)),
                  size = setSize,
                  color = NES, 
                  alpha = p.adjust)) +  
-  facet_grid(~Cluster) + coord_flip() + xlab("GO: Procesos biológicos") + ylab("") +
+  facet_grid(~Cluster) + coord_flip() + xlab("GO: Biological processes") + ylab("") +
   scale_fill_gradient(low="#2494b6", high="#90C433") +
   scale_alpha(range = c(0.8, 0.2)) + 
   geom_point(shape = 21, stroke = 0.5,
@@ -599,7 +598,7 @@ DotP = ggplot(Data, aes(reorder(Description, rev(p.adjust)),
                                               colour="#878787"),
                             title = "FDR",
                             order = 2),
-         size = guide_legend(title = "Tamaño del set",
+         size = guide_legend(title = "Set size",
                             order = 3),
          fill = guide_colorbar(title = "logOR",
                                order = 1)) + 
@@ -611,21 +610,20 @@ DotP
 
 ### REVIGO 
 
-A continuación se muestran los resultados para la agrupación de los términos en
-base a la distancia:
+The results for the clustering of terms based on distance are shown below:
 
 #### IDM 
 
-```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10}
-# Representacion de los terminos reducidos
-RX_revigo(Rterms$IDM) 
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10, fig.height= 10}
+# Representation of reduced terms
+RX_revigo(RtermsDM$IDM)  
 ```
 
 #### IDF 
 
-```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10}
-# Representacion de los terminos reducidos 
-RX_revigo(Rterms$IDF)
+```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, fig.align='center', fig.width= 10, fig.height= 10}
+# Representation of reduced terms 
+RX_revigo(RtermsDM$IDF)
 ```
 
 ***      

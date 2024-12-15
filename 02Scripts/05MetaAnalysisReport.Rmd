@@ -26,7 +26,7 @@ link-citations: TRUE
 
 ---  
 
-# Resumen del metaanálisis  {.tabset .tabset-fade -}
+# Meta-Analysis summary {.tabset .tabset-fade -}
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
 # Packages
@@ -48,7 +48,7 @@ Niv = c("IO", "IOM","IOF","SDIO",
 p_lim = 0.05
 
 # Function
-source("../Functions/Functions.R")
+source("./Functions/Functions.R")
 # Output table
 RX_table <- function(Data,
                      Color1 = "#007FA6",
@@ -60,10 +60,10 @@ RX_table <- function(Data,
                      footer = NULL,
                      font = "Calibri"){
   cols=colnames(Data)[-c(1)] # Columns with info
-  col_keys = colnames(Data) # Nombres unicos de las columnas
+  col_keys = colnames(Data) # Unique names
   # Header
   header = data.frame(col_keys = col_keys,
-                      H1 = c("", rep("Contraste", length(cols))),
+                      H1 = c("", rep("Contrast", length(cols))),
                       H2 = c("", cols)
                       )
   
@@ -86,7 +86,7 @@ RX_table <- function(Data,
   ft <- merge_h(ft, part = "header") %>% 
     merge_v( part = "header")
   
-  # Merge contrastes
+  # Merge Contrasts
   #ft <- merge_v(ft, j = c(1,2), part = "body")
   
   # Horizontal lines 
@@ -95,7 +95,7 @@ RX_table <- function(Data,
   # Outer bottom
   ft <- hline_bottom(ft, border = fp_border(width = 2, color = Color1))
   
-  # Alineamiento
+  # Alignment
   ft <- flextable::align(ft, i=1, align = "center", part = "header") %>%
     flextable::align(i=2, align = "right", part = "header")
   ft <- flextable::align(ft, align = "right", part = "footer")
@@ -113,7 +113,7 @@ RX_table <- function(Data,
   # Font
   #font(ft, fontname = font, part = "all")
   
-  # Matriz de colores
+  # Color matrix
   colormatrix <- ifelse(Data[, cols] == 0, Color.l2, Color.l )
   # Color
   ft <- color(ft, j=cols, color = colormatrix, part = "body") 
@@ -131,13 +131,14 @@ RX_table <- function(Data,
 } 
 
 RXcolor <- function(lis, max=50){ 
+  color = "black"
     add = NULL
     n = length(lis)
     if(n > max){
       lis = lis[1:max]
       add = glue("(+{n - max})")
     }
-  ret = sapply(lis, function(x){
+  ret = sapply(lis[-length(lis)], function(x){
     if(x %in% ObD & x %in% DM2D){
       color = "#5aac73"
   }else if(x %in% DM2D){color = "#2494B5"
@@ -146,7 +147,10 @@ RXcolor <- function(lis, max=50){
   ret = glue("as_chunk('{x}', props = fp_text_default(color = '{color}')), as_chunk(', ', props = fp_text_default(color = 'black'))")
   return(ret)
 })
-  if (!is.null(add)){ret = c(ret, glue("as_chunk('{add}', props = fp_text_default(color = 'black'))"))}
+  # Last one
+  ret = c(ret, glue("as_chunk('{lis[length(lis)]}', props = fp_text_default(color = '{color}'))"))
+  # Add rest
+  if (!is.null(add)){ret = c(ret, glue("as_chunk(', ', props = fp_text_default(color = 'black')), as_chunk('{add}', props = fp_text_default(color = 'black'))"))}
   return(ret)
 }
 
@@ -192,7 +196,7 @@ RX_venn <- function(lists,
 ```  
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
-Dir = "/home/rmoldovan/T2D-Meta-Analysis/Data/OpenTargets"
+Dir = "./Data/OpenTargets"
 ObDB = read.table(glue("{Dir}/Ob.tsv"), sep = "\t", header = TRUE) 
 ObD = ObDB$symbol
 DM2DB = read.table(glue("{Dir}/DM2.tsv"), sep = "\t", header = TRUE)
@@ -201,15 +205,15 @@ DM2D = DM2DB$symbo
 ```  
 
 
-## Obesidad  {.tabset .tabset-fade -}  
+## Obesity  {.tabset .tabset-fade -}  
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
-DirData = "/home/rmoldovan/T2D-Meta-Analysis/Data/04MA/Obesity"
+DirData = "./Data/MA/Obesity"
 
-f= c("IO/Meta-analysis_1_DF.RData", 
-     "IOM/Meta-analysis_2_DF.RData",
-     "IOF/Meta-analysis_3_DF.RData",
-     "SDIO/Meta-analysis_4_DF.RData")
+f= c("IO/Meta-analysis_IO_DF.RData", 
+     "IOM/Meta-analysis_IOM_DF.RData",
+     "IOF/Meta-analysis_IOF_DF.RData",
+     "SDIO/Meta-analysis_SDIO_DF.RData")
 
 files = glue("{DirData}/{f}")
 
@@ -218,7 +222,7 @@ files = glue("{DirData}/{f}")
 
 ### Resumen {-}   
 
-Resumen del metaanálisis en obesidad. 
+Summary of the meta-analysis in Obesity. 
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
 # Prepare data
@@ -243,9 +247,9 @@ names(Res) = contrasts2
 ```  
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
-Data = data.frame(Contraste = names(Res[[1]]),
+Data = data.frame(Contrast = names(Res[[1]]),
                   Res, check.names = FALSE)
-footer = c("Nº total de genes", sapply(Datas, function(x) nrow(x)))
+footer = c("Total number of genes", sapply(Datas, function(x) nrow(x)))
 col_keys = colnames(Data)
 names(footer) = col_keys
 RX_table(Data, footer = footer) %>% width( width = 1.2, unit = "in")
@@ -253,9 +257,9 @@ Dataob = Data
 ```
 
 
-### Intersección {.tabset .tabset-fade -}   
+### Intersection {.tabset .tabset-fade -}   
 
-Estudio de las intersecciones entre los genes obtenidos en el metaanalisis. 
+Study of the intersections between the genes obtained in the meta-analysis. 
 
 #### Upset plot {-} 
 
@@ -298,10 +302,10 @@ Direction = data.frame(set = colnames(Data),
                        #dir = rep(c("Up", "Down"), 4))
                        dir = rep(c("logFC > 0", "logFC < 0"), 4))
 
-# Leyenda:
+# Legend:
 #Anots = as.data.frame(make_comb_mat(An)) 
 #Leg = sapply(as.list(Anots), function(x) colnames(Data)[which(x == 1)], simplify = FALSE)
-Leyenda = lapply(colnames(Data), function(x) upset_query(group= x,
+Legend = lapply(colnames(Data), function(x) upset_query(group= x,
                                                 color="#878785",
                                                 fill="#878787"))
 
@@ -338,12 +342,12 @@ UpsetPlot <- upset(Data,
                 inactive='gray'
             )), #+ theme(text=element_text(size = 29,angle=0))
     
-    # Color de las lineas de interseccion:
-    # Asignacion de colores
-    #queries= Leyenda, 
+    # Colour of intersecting lines:
+    # Assignment of colours
+    #queries= Legend, 
     
     
-    # Cambiamos la posición del set size
+    # We change the position of the set size
     set_sizes = upset_set_size(position='right',
                                #geom = geom_bar(color="red")
                                ) +    
@@ -421,8 +425,8 @@ X
 
 ### SDIO {-} 
 
-En este apartado se estudia a causa de las diferencias en el contraste 
-SDIO en base al efecto en mujeres (verde) y hombres (azul).
+In this section we study the differences in the contrast 
+SDIO based on the effect on female (green) and male (blue).
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
 names(Datas) = Niv = contrasts2
@@ -484,9 +488,10 @@ pp
 
 ### Open Targets {-}
 
-Comparación de los perfiles obtenidos con los previamente asociados a la 
-obesidad (azul), diabetes de tipo 2 (verde) o ambas, según la información
-extraída de Open Targets.
+Comparison of the profiles obtained with those previously associated with 
+obesity (blue), type 2 diabetes (green) or both, as reported in obesity (blue), 
+type 2 diabetes (green) or both, according to information extracted from
+extracted from Open Targets.  
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
 # Prepare data
@@ -523,7 +528,7 @@ names(Res) = contrasts2
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, results='hide' }
 # Get table
-Tabla = data.frame(Contrastes = names(Res),
+Tabla = data.frame(Contrasts = names(Res),
   Up = rep("",4), Down = rep("", 4))
 ft <- flextable(Tabla)
 sapply(seq(names(Res)), function(i){
@@ -540,8 +545,8 @@ BH = ft
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
 Data=Tabla
 header = data.frame(col_keys = colnames(Tabla),
-                    H1 = c("Contraste", "Significancia", "Significancia"),
-                    H2 = c("Contraste", "logFC > 0", "logFC < 0")
+                    H1 = c("Contrast", "Significance", "Significance"),
+                    H2 = c("Contrast", "logFC > 0", "logFC < 0")
                     #H2=colnames(Data)
                     )
 
@@ -574,7 +579,7 @@ footer = NULL
   ft <- merge_h(ft, part = "header") %>% 
     merge_v( part = "header")
   
-  # Merge contrastes
+  # Merge Contrasts
   #ft <- merge_v(ft, j = c(1,2), part = "body")
   
   # Horizontal lines 
@@ -583,12 +588,12 @@ footer = NULL
   # Outer bottom
   ft <- hline_bottom(ft, border = fp_border(width = 2, color = Color1))
   
-  # Alineamiento
+  # Alignment
   ft <- flextable::align(ft, align = "center", part = "header")
   ft <- flextable::align(ft, align = "center", part = "footer")
   ft <- flextable::align(ft, align = "center", part = "body")
   
-  # Primera columna alineada
+  # First column aligned
   ft <- flextable::align(ft, j=1, align = "left", part = "all")
   
   
@@ -605,7 +610,7 @@ footer = NULL
     color(i=c(2), color = Color.l2, part = "header") %>%
     bold( bold = TRUE, part = "header") %>%
     bold( bold = TRUE, j=1, part = "body")  #%>%
-    # Colores chachis x
+    
     #color(j=1, color = colors, part = "body")
   # Rotate names
   #ft <- rotate(ft, i = 2, rotation = "btlr", part = "header", align = "bottom")
@@ -613,7 +618,7 @@ footer = NULL
   # Font
   #
   
-  # Matriz de colores
+  # Color matrix
    ft<- fontsize(ft,  size = 12, part = "all") %>%
      font(fontname = font, part = "all")
 ft <-ft %>% flextable::width(width = 0.3)
@@ -628,23 +633,27 @@ ft <-ft %>% flextable::width(width = 0.3)
   ft <- flextable::align(ft, j=1, align = "left", part = "footer")
   }
 
-# Pintamos de gris los valors -
+# We paint the values grey -
   colormatrix <- ifelse((as.matrix(Data)) %in% c(0,"0", "-"), Color.l2, Color.l )
 ft <- color(ft, color = colormatrix, part = "body")  %>%
     color(j=1, color = "black", part = "body")
 ft %>% width(width = 2)
 ```
 
+```{r}
+# saveRDS(ft, "./Data/OpenTargetsOb.rds")
+```
+
 
 ## Diabetes {.tabset .tabset-fade -}   
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
-DirData = "/home/rmoldovan/T2D-Meta-Analysis/Data/04MA/Diabetes"
+DirData = "./Data/MA/Diabetes"
 
-f= c("ID/Meta-analysis_1_DF.RData", 
-     "IDM/Meta-analysis_2_DF.RData",
-     "IDF/Meta-analysis_3_DF.RData",
-     "DSID/Meta-analysis_4_DF.RData")
+f= c("ID/Meta-analysis_ID_DF.RData", 
+     "IDM/Meta-analysis_IDM_DF.RData",
+     "IDF/Meta-analysis_IDF_DF.RData",
+     "SDID/Meta-analysis_SDID_DF.RData")
 
 files = glue("{DirData}/{f}")
 
@@ -678,9 +687,9 @@ names(Res) = contrasts2
 
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
-Data = data.frame(Contraste = names(Res[[1]]),
+Data = data.frame(Contrast = names(Res[[1]]),
                   Res, check.names = FALSE)
-footer = c("Nº total de genes", sapply(Datas, function(x) nrow(x)))
+footer = c("Total number of genes", sapply(Datas, function(x) nrow(x)))
 col_keys = colnames(Data)
 names(footer) = col_keys
 DataDM = Data
@@ -688,7 +697,7 @@ RX_table(Data, footer = footer) %>% width( width = 1.2, unit = "in")
 ```   
 
 
-### Intersección {.tabset .tabset-fade -} 
+### Intersection {.tabset .tabset-fade -} 
 
 Estudio de las intersecciones entre los genes obtenidos en el metaanalisis. 
 
@@ -733,10 +742,10 @@ Direction = data.frame(set = colnames(Data),
                        #dir = rep(c("Up", "Down"), 4))
                        dir = rep(c("logFC > 0", "logFC < 0"), 4))
 
-# Leyenda:
+# Legend:
 #Anots = as.data.frame(make_comb_mat(An)) 
 #Leg = sapply(as.list(Anots), function(x) colnames(Data)[which(x == 1)], simplify = FALSE)
-Leyenda = lapply(colnames(Data), function(x) upset_query(group= x,
+Legend = lapply(colnames(Data), function(x) upset_query(group= x,
                                                 color="#878785",
                                                 fill="#878787"))
 
@@ -773,12 +782,12 @@ UpsetPlot <- upset(Data,
                 inactive='gray'
             )), #+ theme(text=element_text(size = 29,angle=0))
     
-    # Color de las lineas de interseccion:
-    # Asignacion de colores
-    #queries= Leyenda, 
+    # Colour of intersecting lines:
+    # Assignment of colours
+    #queries= Legend, 
     
     
-    # Cambiamos la posición del set size
+    # We change the position of the set size
     set_sizes = upset_set_size(position='right',
                                #geom = geom_bar(color="red")
                                ) +    
@@ -857,9 +866,9 @@ X
 
 ### Open Targets {-}  
 
-Comparación de los perfiles obtenidos con los previamente asociados a la 
-obesidad (azul), diabetes de tipo 2 (verde) o ambas, según la información
-extraída de Open Targets.
+Comparison of the profiles obtained with those previously associated with 
+obesity (blue), type 2 diabetes (green) or both, according to information
+extracted from Open Targets.
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
 # Prepare data
@@ -889,7 +898,7 @@ Res[c("IDM", "IDF")] = sapply(Res[c("IDM", "IDF")],function(x)
 
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE, results='hide' }
 # Get table
-Tabla = data.frame(Contrastes = names(Res),
+Tabla = data.frame(Contrasts = names(Res),
   Up = rep("",4), Down = rep("", 4))
 ft <- flextable(Tabla)
 sapply(seq(names(Res)), function(i){
@@ -906,8 +915,8 @@ BH = ft
 ```{r echo=T, eval=TRUE, message=FALSE, warning=FALSE}
 Data=Tabla
 header = data.frame(col_keys = colnames(Tabla),
-                    H1 = c("Contraste", "Significancia", "Significancia"),
-                    H2 = c("Contraste", "logFC > 0", "logFC < 0")
+                    H1 = c("Contrast", "Significance", "Significance"),
+                    H2 = c("Contrast", "logFC > 0", "logFC < 0")
                     #H2=colnames(Data)
                     )
 
@@ -940,7 +949,7 @@ footer = NULL
   ft <- merge_h(ft, part = "header") %>% 
     merge_v( part = "header")
   
-  # Merge contrastes
+  # Merge Contrasts
   #ft <- merge_v(ft, j = c(1,2), part = "body")
   
   # Horizontal lines 
@@ -949,12 +958,12 @@ footer = NULL
   # Outer bottom
   ft <- hline_bottom(ft, border = fp_border(width = 2, color = Color1))
   
-  # Alineamiento
+  # Alignment
   ft <- flextable::align(ft, align = "center", part = "header")
   ft <- flextable::align(ft, align = "center", part = "footer")
   ft <- flextable::align(ft, align = "center", part = "body")
   
-  # Primera columna alineada
+  # First column aligned
   ft <- flextable::align(ft, j=1, align = "left", part = "all")
   
   
@@ -971,7 +980,7 @@ footer = NULL
     color(i=c(2), color = Color.l2, part = "header") %>%
     bold( bold = TRUE, part = "header") %>%
     bold( bold = TRUE, j=1, part = "body")  #%>%
-    # Colores chachis x
+    
     #color(j=1, color = colors, part = "body")
   # Rotate names
   #ft <- rotate(ft, i = 2, rotation = "btlr", part = "header", align = "bottom")
@@ -979,7 +988,7 @@ footer = NULL
   # Font
   #
   
-  # Matriz de colores
+  # Color matrix
    ft<- fontsize(ft,  size = 12, part = "all") %>%
      font(fontname = font, part = "all")
 ft <-ft %>% flextable::width(width = 0.3)
@@ -994,12 +1003,16 @@ ft <-ft %>% flextable::width(width = 0.3)
   ft <- flextable::align(ft, j=1, align = "left", part = "footer")
   }
 
-# Pintamos de gris los valors -
+# We paint the values grey -
   colormatrix <- ifelse((as.matrix(Data)) %in% c(0,"0", "-"), Color.l2, Color.l )
 ft <- color(ft, color = colormatrix, part = "body")  %>%
     color(j=1, color = "black", part = "body")
 ft %>% width(width = 2)
 ```   
+
+```{r}
+# saveRDS(ft, "./Data/OpenTargetsT2D.rds")
+```
 
 
 ***      

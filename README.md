@@ -26,7 +26,7 @@ Over the last three decades, the prevalence of type 2 diabetes (T2D) has increas
 ### Design
 
 <div align="center">
-  <img src="./README/DE.svg" alt="DE" width="550">
+  <img src="./README/Design.svg" alt="Design" width="550">
 </div>
 <br>
 
@@ -67,8 +67,10 @@ The results were interpreted and subjected to functional analysis to gain insigh
 >     │   └── 06FunctionalAnalysisReport.Rmd  
 >     │     
 >     ├── 03ProcessingReports
->     │   ├── DifferentialExpressionReport.html
->     │   ├── DifferentialExpressionReport.rmd
+>     │   ├── DifferentialExpressionReport_Ob.html
+>     │   ├── DifferentialExpressionReport_Ob.rmd
+>     │   ├── DifferentialExpressionReport_T2D.html
+>     │   ├── DifferentialExpressionReport_T2D.rmd
 >     │   ├── Meta-analysisReport_ID.html
 >     │   ├── Meta-analysisReport_ID.rmd
 >     │   ├── Meta-analysisReport_IDF.html

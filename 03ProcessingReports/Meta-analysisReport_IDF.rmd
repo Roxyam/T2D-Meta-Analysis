@@ -1,5 +1,5 @@
 ---
-title: "05 Metaanálisis."
+title: "05 MetaAnalysis"
 author: "Roxana Andreea Moldovan Moldovan"
 date: "`r Sys.Date()`"
 output:
@@ -25,7 +25,7 @@ fig_caption: yes
 link-citations: TRUE 
 ---
         
-## Meta-análisis {.tabset .tabset-fade -} 
+##   {.tabset .tabset-fade -} 
 &nbsp;  
 
 
@@ -38,21 +38,21 @@ pacman::p_load(magick)
 ```  
 
 
-En este documento se muestran los resultados del metaanálisis de los estudios: GSE20950, GSE141432 para el contraste Ob_IR.F - Ob_IS.F.  
+This document shows the results of the meta-analysis of the studies: GSE20950, GSE141432 para el contraste T2D.F - Ob.F.  
 &nbsp;  
 
 
-Tomando un p valor ajustado por BH < 0.05 encontramos 1051 genes significativos.  
+Taking a p-value adjusted for BH < 0.05 we found 1299 significative genes.  
 &nbsp;  
 
 
-### Tabla de resultados {-} 
+### Table of results {-} 
 &nbsp;  
 
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-DT = get(load("/home/rmoldovan/T2D-Meta-Analysis/Data/MA/Diabetes/IDF/Meta-analysis_3_DF.RData"))
-datatable(DT, options = list(caption = "Resultados del metaanálisis.",
+DT = get(load("C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/05Paper/AnalysisGit/Data/MA/Diabetes/IDF/Meta-analysis_IDF_DF.RData"))
+datatable(DT, options = list(caption = "Meta-analysis results.",
                               scrollX = TRUE),
                               filter = "top")
 ```  
@@ -61,16 +61,16 @@ datatable(DT, options = list(caption = "Resultados del metaanálisis.",
 &nbsp;  
 
 
-### Representación gráfica {-}  
+### Graphical representation {-}  
 &nbsp; 
 
-Aquí se muestran las figuras características del metaanálisis para los
-genes significativos tomando un p valor ajustado por BH < 0.05.  
+Here are the characteristic figures of the meta-analysis for the 
+      significant genes taking a p-value adjusted for BH < 0.05.  
 &nbsp;  
 
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-# Función para repesentar las figuras
+# Plot function
 grid_img <- function(list_fig, dir, patt, dim = 300){
   # Abrimos todas las filas:
   forest_plots = c()
@@ -114,8 +114,8 @@ grid_img <- function(list_fig, dir, patt, dim = 300){
 
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, out.width=".99\\linewidth"}
-path = "/home/rmoldovan/T2D-Meta-Analysis/Data/MA/Diabetes/IDF/Plots"
-files <- list.files(path = path, pattern = "Meta-analysis_3.*forest")
+path = "C:/Users/roxya/OneDrive/Documentos/01Master_bioinformatica/00TFM/05Paper/AnalysisGit/Data/MA/Diabetes/IDF/Plots"
+files <- list.files(path = path, pattern = "Meta-analysis_IDF.*forest")
 figuras = sapply( files, function(x) substr(x, start = 0, stop = nchar(x)-10), 
                   USE.NAMES = FALSE)
 # Plot

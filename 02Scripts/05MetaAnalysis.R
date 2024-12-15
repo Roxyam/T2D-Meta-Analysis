@@ -133,13 +133,57 @@ parser$add_argument("-mx", "--pmax",
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
 #------------- Execution 
-#args <- parser$parse_args(args = c('-t="SAT"',
-#                                   '-f=/home/rmoldovan/T2D-Meta-Analysis/Data/04DE/DifferentialExpressionGroup.RData',
-#                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/Data/05MA/Obesity/SDIO',
-#                                   '-c=(Ob_IS.M - Np_IS.M) - (Ob_IS.F - Np_IS.F)',
-#                                   '-p=Meta-analysis_4',
-#                                   '-id=Meta-analysis_4'))
-#
+# args <- parser$parse_args(args = c('-t="SAT"',
+#                                    '-f=./Data/DE/DifferentialExpressionGroup.RData',
+#                                    '-o=./Data/MA/Obesity/IO',
+#                                    '-c=Ob - C',
+#                                    '-p=Meta-analysis_IO',
+#                                    '-id=Meta-analysis_IO'))
+# args <- parser$parse_args(args = c('-t="SAT"',
+#                                    '-f=./Data/DE/DifferentialExpressionGroup.RData',
+#                                    '-o=./Data/MA/Obesity/IOM',
+#                                    '-c=Ob.M - C.M',
+#                                    '-p=Meta-analysis_IOM',
+#                                    '-id=Meta-analysis_IOM'))
+# args <- parser$parse_args(args = c('-t="SAT"',
+#                                    '-f=./Data/DE/DifferentialExpressionGroup.RData',
+#                                    '-o=./Data/MA/Obesity/IOF',
+#                                    '-c=Ob.F - C.F',
+#                                    '-p=Meta-analysis_IOF',
+#                                    '-id=Meta-analysis_IOF'))
+# args <- parser$parse_args(args = c('-t="SAT"',
+#                                   '-f=./Data/DE/DifferentialExpressionGroup.RData',
+#                                   '-o=./Data/MA/Obesity/SDIO',
+#                                   '-c=(Ob.M - C.M) - (Ob.F - C.F)',
+#                                   '-p=Meta-analysis_SDIO',
+#                                   '-id=Meta-analysis_SDIO'))
+
+# Diabetes
+# args <- parser$parse_args(args = c('-t="SAT"',
+#                                    '-f=./Data/DE/DifferentialExpressionGroup.RData',
+#                                    '-o=./Data/MA/Diabetes/ID',
+#                                    '-c=T2D - Ob',
+#                                    '-p=Meta-analysis_ID',
+#                                    '-id=Meta-analysis_ID'))
+# args <- parser$parse_args(args = c('-t="SAT"',
+#                                    '-f=./Data/DE/DifferentialExpressionGroup.RData',
+#                                    '-o=./Data/MA/Diabetes/IDM',
+#                                    '-c=T2D.M - Ob.M',
+#                                    '-p=Meta-analysis_IDM',
+#                                    '-id=Meta-analysis_IDM'))
+# args <- parser$parse_args(args = c('-t="SAT"',
+#                                    '-f=./Data/DE/DifferentialExpressionGroup.RData',
+#                                    '-o=./Data/MA/Diabetes/IDF',
+#                                    '-c=T2D.F - Ob.F',
+#                                    '-p=Meta-analysis_IDF',
+#                                    '-id=Meta-analysis_IDF'))
+# args <- parser$parse_args(args = c('-t="SAT"',
+#                                   '-f=./Data/DE/DifferentialExpressionGroup.RData',
+#                                   '-o=./Data/MA/Diabetes/SDID',
+#                                   '-c=(T2D.M - Ob.M) - (T2D.F - Ob.F)',
+#                                   '-p=Meta-analysis_SDID',
+#                                   '-id=Meta-analysis_SDID'))
+
 #------------- Checking arguments 
 # Load the data
 Datas = get(load(args$filein))
@@ -176,7 +220,7 @@ PlotsDir = glue("{args$outdir}/Plots")
 
 # Output directory
 if(! file.exists(args$outdir)){
-  system(glue("mkdir {args$outdir}"))
+  system(glue("mkdir -p {args$outdir}"))
 }
 # Plots directory
 system(glue("mkdir {PlotsDir}"))
@@ -200,7 +244,7 @@ if(file.exists(Mats_in) & isFALSE(args$redo)){
   Mats = RX_MetaAnalysis_prep(Studies = Studies,
                               Tissue = Tissue,
                               Datas = Datas,
-                              SE_coef = "SE",
+                              SE_coef = "coefSE",
                               Contrast = contrast)
   save(Mats, file = Mats_out)
 }
@@ -330,7 +374,7 @@ report_out = glue("{args$outdir}/{args$prefix}Report.rmd")
 if(isTRUE(args$report)){
   # File info
   cat('---
-title: "05 Metaanálisis."
+title: "05 MetaAnalysis"
 author: "Roxana Andreea Moldovan Moldovan"
 date: "`r Sys.Date()`"
 output:
@@ -383,7 +427,7 @@ pacman::p_load(magick)',
     file = report_out,
     append = TRUE)
   
-  cat('\nEn este documento se muestran los resultados del metaanálisis de los estudios: ', 
+  cat('\nThis document shows the results of the meta-analysis of the studies: ', 
       paste(Studies, collapse = ", "),
       ' para el contraste ',
       args$contrast, 
@@ -392,13 +436,13 @@ pacman::p_load(magick)',
       file = report_out,
       append = TRUE)
   
-  cat('\nTomando un p valor ajustado por BH < ', args$plim, ' encontramos ', nrow(sigData0), ' genes significativos.  \n',
+  cat('\nTaking a p-value adjusted for BH < ', args$plim, ' we found ', nrow(sigData0), ' significative genes.  \n',
       '&nbsp;  \n\n',
       sep ="",
       file = report_out,
       append = TRUE)
   
-  cat('\n### Tabla de resultados {-} \n',
+  cat('\n### Table of results {-} \n',
       '&nbsp;  \n\n',
       sep ="",
       file = report_out,
@@ -408,7 +452,7 @@ pacman::p_load(magick)',
     # Open chunk
     '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}\n',
     'DT = get(load("', DF_out, '"))\n',
-    'datatable(DT, options = list(caption = "Resultados del metaanálisis.",
+    'datatable(DT, options = list(caption = "Meta-analysis results.",
                               scrollX = TRUE),
                               filter = "top")',
     # Close chunk
@@ -417,9 +461,9 @@ pacman::p_load(magick)',
     file = report_out,
     append = TRUE)
   
-  cat('\n### Representación gráfica {-}  \n&nbsp; \n',
-      '\nAquí se muestran las figuras características del metaanálisis para los
-genes significativos tomando un p valor ajustado por BH < ', args$plim, '.  \n',
+  cat('\n### Graphical representation {-}  \n&nbsp; \n',
+      '\nHere are the characteristic figures of the meta-analysis for the 
+      significant genes taking a p-value adjusted for BH < ', args$plim, '.  \n',
       '&nbsp;  \n\n',
       sep ="",
       file = report_out,
@@ -429,7 +473,7 @@ genes significativos tomando un p valor ajustado por BH < ', args$plim, '.  \n',
   cat(
     # Open chunk
     '\n```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}\n',
-    '# Función para repesentar las figuras\n',
+    '# Plot function\n',
     'grid_img <- function(list_fig, dir, patt, dim = 300){
   # Abrimos todas las filas:
   forest_plots = c()

@@ -100,17 +100,31 @@ parser$add_argument("-d", "--database",
 # ~~~~~~~~~~~~ Main ~~~~~~~~~~~~ #
 
 #------------- Execution 
-#args <- parser$parse_args(args = c('-i=/home/rmoldovan/T2D-Meta-Analysis/Data/MA/Obesity',
-#                                   '-o=/home/rmoldovan/T2D-Meta-Analysis/Data/FA',
-#                                   '-f=c("IO/Meta-analysis_1_DF.RData",   \\
-#                                         "IOM/Meta-analysis_2_DF.RData",  \\
-#                                         "IOF/Meta-analysis_3_DF.RData",   \\
-#                                         "SDIO/Meta-analysis_4_DF.RData")',
-#                                   '-c=c("Ob_IS - Np_IS",  \\
-#                                         "Ob_IS.M - Np_IS.M",  \\
-#                                         "Ob_IS.F - Np_IS.F",  \\
-#                                         "(Ob_IS.M - Np_IS.M) - (Ob_IS.F-  Np_IS.F)")',
-#                                   '-d=c("BP", "MF", "CC", "KEGG", "Reactome")')) 
+# args <- parser$parse_args(args = c('-i=./Data/MA/Obesity',
+#                                    '-o=./Data/FA',
+#                                    '-f=c("IO/Meta-analysis_IO_DF.RData",   \\
+#                                          "IOM/Meta-analysis_IOM_DF.RData",  \\
+#                                          "IOF/Meta-analysis_IOF_DF.RData",   \\
+#                                          "SDIO/Meta-analysis_SDIO_DF.RData")',
+#                                    '-c=c("Ob - C",  \\
+#                                          "Ob-M - C.M",  \\
+#                                          "Ob.F - C.F",  \\
+#                                          "(Ob-M - C.M) - (Ob.F - C.F)")',
+#                                    '-d=c("BP", "MF", "CC", "KEGG", "Reactome")',
+#                                    '-n=Obesity')) 
+
+#args <- parser$parse_args(args = c('-i=./Data/MA/Diabetes',
+#                                   '-o=./Data/FA',
+#                                   '-f=c("ID/Meta-analysis_1_DF.RData",   \\
+#                                         "IDM/Meta-analysis_2_DF.RData",  \\
+#                                         "IDF/Meta-analysis_3_DF.RData",   \\
+#                                         "SDID/Meta-analysis_4_DF.RData")',
+#                                   '-c=c("Ob_IR - Ob_IS",  \\
+#                                         "Ob_IR.M - Ob_IS.M",  \\
+#                                         "Ob_IR.F - Ob_IS.F",  \\
+#                                         "(Ob_IR.M - Ob_IS.M) - (Ob_IR.F - Ob_IS.F)")',
+#                                   '-d=c("BP", "MF", "CC", "KEGG", "Reactome")',
+#                                   '-n=Obesity')) 
 #
 #------------- Checking arguments
 args$files = eval(parse(text = args$files))
@@ -194,7 +208,7 @@ if(args$method == "ORA"){
   # GO CC
   if ("CC" %in% args$database){ 
     cat("\n\tCC\n") 
-    # Realiza el análisis de enriquecimiento funcional
+    # Performs functional enrichment analysis
     Results = mclapply(contrasts, function(c){
       r = sapply(Data[[c]], function(x){
         enrich_result <- enrichGO(gene          = x,
